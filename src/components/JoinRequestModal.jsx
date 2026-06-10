@@ -1,9 +1,9 @@
 import { useState } from 'react';
 
-export default function JoinRequestModal({ ride, onClose, onSubmitRequest, onGoToMessages }) {
+export default function JoinRequestModal({ ride, userProfile, onClose, onSubmitRequest, onGoToMessages }) {
   const [form, setForm] = useState({
-    nickname: '',
-    departureCity: '',
+    nickname: userProfile?.nickname || '',
+    departureCity: userProfile?.departureCity || '',
     passengers: '1',
     message: '',
     isOfAge: false

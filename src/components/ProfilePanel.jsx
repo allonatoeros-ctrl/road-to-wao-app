@@ -1,30 +1,13 @@
 import { useState, useEffect } from 'react';
 
-export default function ProfilePanel({ requests, onNavigateToBacheca, onOpenControlRoom }) {
-  // Local profile state, initialized from localStorage or defaults
-  const [profile, setProfile] = useState(() => {
-    const saved = localStorage.getItem('wao_profile');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        // ignore and fallback
-      }
-    }
-    return {
-      nickname: 'Cosmic Rider',
-      badge: 'Crew seeker',
-      departureCity: 'Milano',
-      vibe: 'music-first / tranquillo',
-      status: 'Sto cercando passaggio'
-    };
-  });
+export default function ProfilePanel({ requests, userProfile, onUpdateProfile, onNavigateToBacheca, onOpenControlRoom }) {
+  const profile = userProfile;
 
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ ...profile });
 
   useEffect(() => {
-    localStorage.setItem('wao_profile', JSON.stringify(profile));
+    setEditForm({ ...profile });
   }, [profile]);
 
   const handleEditChange = (e) => {
@@ -35,7 +18,7 @@ export default function ProfilePanel({ requests, onNavigateToBacheca, onOpenCont
   const handleSave = (e) => {
     e.preventDefault();
     if (!editForm.nickname.trim()) return;
-    setProfile(editForm);
+    onUpdateProfile(editForm);
     setIsEditing(false);
   };
 

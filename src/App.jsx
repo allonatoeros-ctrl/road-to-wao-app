@@ -9,10 +9,47 @@ import ProfilePanel from './components/ProfilePanel';
 import AdminPanel from './components/AdminPanel';
 import './road-to-wao.css';
 
+const DEFAULT_PROFILE = {
+  nickname: 'Cosmic Rider',
+  departureCity: 'Milano',
+  vibe: 'music-first / tranquillo',
+  badge: 'Crew seeker',
+  status: 'Sto cercando passaggio'
+};
+
 function App() {
   const [currentTab, setCurrentTab] = useState('casa');
   const [selectedRide, setSelectedRide] = useState(null);
   const [requests, setRequests] = useState([]);
+
+  const [userProfile, setUserProfile] = useState(() => {
+    const saved = localStorage.getItem('wao_profile');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') {
+          return {
+            nickname: parsed.nickname || DEFAULT_PROFILE.nickname,
+            departureCity: parsed.departureCity || DEFAULT_PROFILE.departureCity,
+            vibe: parsed.vibe || DEFAULT_PROFILE.vibe,
+            badge: parsed.badge || DEFAULT_PROFILE.badge,
+            status: parsed.status || DEFAULT_PROFILE.status
+          };
+        }
+      } catch (e) {
+        console.error('Error parsing profile from localStorage', e);
+      }
+    }
+    return DEFAULT_PROFILE;
+  });
+
+  const handleUpdateProfile = (updated) => {
+    setUserProfile(prev => {
+      const next = { ...prev, ...updated };
+      localStorage.setItem('wao_profile', JSON.stringify(next));
+      return next;
+    });
+  };
 
   return (
     <CosmicAppShell>
@@ -124,6 +161,8 @@ function App() {
           <div className="app-content">
             <ProfilePanel 
               requests={requests} 
+              userProfile={userProfile}
+              onUpdateProfile={handleUpdateProfile}
               onNavigateToBacheca={() => setCurrentTab('bacheca')} 
               onOpenControlRoom={() => setCurrentTab('control-room')}
             />
@@ -156,8 +195,15 @@ function App() {
         {selectedRide && (
           <JoinRequestModal
             ride={selectedRide}
+            userProfile={userProfile}
             onClose={() => setSelectedRide(null)}
-            onSubmitRequest={(newReq) => setRequests(prev => [newReq, ...prev])}
+            onSubmitRequest={(newReq) => {
+              setRequests(prev => [newReq, ...prev]);
+              handleUpdateProfile({
+                nickname: newReq.nickname,
+                departureCity: newReq.departure
+              });
+            }}
             onGoToMessages={() => setCurrentTab('messaggi')}
           />
         )}
