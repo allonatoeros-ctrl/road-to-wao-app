@@ -1,0 +1,583 @@
+/* Design Tokens & Global Customizations for Road to WAO - Polish & WOW Edition */
+
+.road-to-wao-root {
+  min-height: 100%;
+  color: var(--text-main);
+  background:
+    radial-gradient(circle at 50% 5%, rgba(255, 106, 0, 0.42), transparent 45%),
+    radial-gradient(circle at 85% 15%, rgba(177, 43, 255, 0.28), transparent 45%),
+    radial-gradient(circle at 15% 75%, rgba(42, 242, 224, 0.16), transparent 40%),
+    linear-gradient(180deg, var(--deep-navy), var(--night-black) 78%);
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+.wao-display {
+  font-family: 'Cinzel', Georgia, serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* Cosmic App Shell styles */
+.phone-frame {
+  width: 390px;
+  height: 844px;
+  background-color: #05050a;
+  border: 12px solid #1a1a2e;
+  border-radius: 48px;
+  box-shadow:
+    0 25px 50px -12px rgba(0, 0, 0, 0.8),
+    0 0 50px rgba(255, 106, 0, 0.18),
+    0 0 30px rgba(177, 43, 255, 0.12);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Simula il notch o la Dynamic Island in alto */
+.phone-island {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 110px;
+  height: 30px;
+  background-color: #000;
+  border-radius: 20px;
+  z-index: 100;
+}
+
+.phone-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  height: 100%;
+}
+
+/* Status Bar mockup */
+.phone-status-bar {
+  height: 40px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 24px 0 24px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-soft);
+  z-index: 90;
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+.status-bar-icons {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.status-icon {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+}
+
+/* --- SOLAR HERO BACKGROUND (REAL ASSET EDITION) --- */
+
+.solar-background-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 400px;
+  overflow: hidden;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Sfondo base stellato e nebulosa */
+.wao-bg-main {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.9;
+  z-index: -3;
+}
+
+/* Particelle stellari aggiuntive */
+.wao-starfield-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.65;
+  mix-blend-mode: screen;
+  z-index: -2;
+  animation: starfield-pulse 8s ease-in-out infinite alternate;
+}
+
+@keyframes starfield-pulse {
+  0% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 0.4;
+    transform: scale(1.04);
+  }
+}
+
+/* Eclissi Solare Centrale con bagliore finto dietro */
+.wao-eclipse-wrapper {
+  position: absolute;
+  top: -95px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 320px;
+  height: 320px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: -1;
+}
+
+.wao-eclipse-overlay {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 0 15px rgba(255, 106, 0, 0.4));
+  animation: eclipse-sway 10s ease-in-out infinite alternate;
+}
+
+@keyframes eclipse-sway {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(4px);
+  }
+}
+
+.wao-eclipse-pulse-glow {
+  position: absolute;
+  width: 170px;
+  height: 170px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 106, 0, 0.55) 0%, rgba(255, 197, 71, 0.2) 55%, transparent 75%);
+  filter: blur(14px);
+  z-index: -1;
+  animation: eclipse-glow-pulse 4s infinite alternate ease-in-out;
+}
+
+@keyframes eclipse-glow-pulse {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(1.08);
+    opacity: 0.95;
+  }
+}
+
+/* Nebulosa inferiore sfumata */
+.wao-nebula-bottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  mix-blend-mode: screen;
+  z-index: 1;
+  opacity: 0.85;
+}
+
+/* --- CENTERPIECE MANDALA (REAL ASSET EDITION) --- */
+
+.wao-mandala-container {
+  position: relative;
+  width: 130px;
+  height: 130px;
+  margin: 16px auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+}
+
+.wao-mandala-centerpiece {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 0 12px rgba(255, 197, 71, 0.35)) drop-shadow(0 0 24px rgba(255, 106, 0, 0.2));
+  animation: spin-clockwise 75s linear infinite;
+  opacity: 0.92;
+}
+
+@keyframes spin-clockwise {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* App Main Content & Safe Area */
+.app-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 16px 20px calc(96px + env(safe-area-inset-bottom)) 20px;
+  /* Safe-area per la bottom navigation di iPhone/Safari */
+  z-index: 10;
+  overflow-y: auto;
+  position: relative;
+  gap: 12px;
+}
+
+/* Sub-header dell'app */
+.app-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  margin-top: 2px;
+}
+
+.app-brand {
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  color: var(--amber-gold);
+  text-shadow: 0 0 10px rgba(255, 197, 71, 0.35);
+}
+
+.app-badge-demo {
+  font-size: 8.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  border: 1px solid rgba(140, 124, 102, 0.25);
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* Hero section - Meno alta e più respirata */
+.hero-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-top: 10px;
+  margin-bottom: 5px;
+}
+
+.hero-subtitle-top {
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  color: var(--text-soft);
+  margin-bottom: 4px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  opacity: 0.9;
+}
+
+.hero-title {
+  font-size: 26px;
+  line-height: 1.15;
+  color: var(--text-main);
+  text-shadow:
+    0 4px 10px rgba(0, 0, 0, 0.8),
+    0 0 24px rgba(255, 106, 0, 0.22);
+  font-weight: 900;
+}
+
+.hero-title-sub {
+  display: block;
+  font-size: 18px;
+  color: var(--text-soft);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  margin-top: 4px;
+  text-transform: none;
+  opacity: 0.85;
+}
+
+.hero-subtitle-bottom {
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  color: var(--text-soft);
+  margin-top: 8px;
+  font-weight: 400;
+  max-width: 80%;
+  line-height: 1.35;
+  opacity: 0.8;
+}
+
+/* Actions cards section - Compatte */
+.actions-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.wao-card {
+  border: 1px solid rgba(255, 197, 71, 0.14);
+  border-radius: var(--radius-md);
+  background: rgba(14, 13, 38, 0.65);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.wao-card:active {
+  transform: scale(0.98);
+}
+
+.wao-card.card-primary {
+  border-color: rgba(255, 106, 0, 0.38);
+  box-shadow: 0 8px 25px rgba(255, 106, 0, 0.08), var(--shadow-card);
+}
+
+.wao-card.card-secondary {
+  border-color: rgba(177, 43, 255, 0.32);
+  box-shadow: 0 8px 25px rgba(177, 43, 255, 0.06), var(--shadow-card);
+}
+
+.card-label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-soft);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.card-label-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.card-primary .card-label-dot {
+  background-color: var(--solar-orange);
+  box-shadow: 0 0 6px var(--solar-orange);
+}
+
+.card-secondary .card-label-dot {
+  background-color: var(--magenta-purple);
+  box-shadow: 0 0 6px var(--magenta-purple);
+}
+
+.card-desc {
+  font-size: 11px;
+  color: var(--text-soft);
+  margin-top: -3px;
+  opacity: 0.75;
+}
+
+.wao-primary-button {
+  border: 0;
+  border-radius: var(--radius-pill);
+  padding: 12px 20px;
+  color: #251000;
+  font-weight: 900;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  background: linear-gradient(135deg, var(--amber-gold), var(--solar-orange));
+  box-shadow: 0 0 15px rgba(255, 106, 0, 0.35);
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  transition: filter 0.2s, transform 0.2s, box-shadow 0.2s;
+  width: 100%;
+}
+
+.wao-primary-button:hover {
+  filter: brightness(1.15);
+  box-shadow: 0 0 25px rgba(255, 106, 0, 0.5);
+}
+
+.wao-primary-button:active {
+  transform: scale(0.97);
+}
+
+.wao-secondary-button {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-pill);
+  padding: 11px 20px;
+  color: var(--text-main);
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  background: linear-gradient(135deg, rgba(177, 43, 255, 0.75), rgba(255, 106, 0, 0.2));
+  box-shadow: 0 0 15px rgba(177, 43, 255, 0.2);
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.2s, transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+  width: 100%;
+}
+
+.wao-secondary-button:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: linear-gradient(135deg, rgba(177, 43, 255, 0.85), rgba(255, 106, 0, 0.25));
+  box-shadow: 0 0 22px rgba(177, 43, 255, 0.35);
+}
+
+.wao-secondary-button:active {
+  transform: scale(0.97);
+}
+
+/* Disclaimer / Info block - Ridotto e compatto */
+.info-section {
+  width: 100%;
+  margin-top: 2px;
+}
+
+.disclaimer-card {
+  background: rgba(5, 5, 10, 0.55);
+  border: 1px solid rgba(140, 124, 102, 0.1);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+}
+
+.disclaimer-text {
+  font-size: 9.5px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.footer-line {
+  font-size: 8.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+  text-align: center;
+  margin-top: 8px;
+  font-weight: 500;
+  opacity: 0.6;
+}
+
+/* Bottom Navigation Bar style - Safe Area */
+.bottom-nav-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: calc(64px + env(safe-area-inset-bottom));
+  background: rgba(11, 12, 30, 0.92);
+  border-top: 1px solid rgba(255, 197, 71, 0.06);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding-bottom: env(safe-area-inset-bottom);
+  z-index: 100;
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  gap: 3px;
+  flex: 1;
+  height: 52px;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.nav-item svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  stroke-width: 2.2px;
+  fill: none;
+  transition: transform 0.2s ease, stroke 0.2s ease;
+}
+
+.nav-item:hover {
+  color: var(--text-soft);
+}
+
+.nav-item.active {
+  color: var(--amber-gold);
+  text-shadow: 0 0 6px rgba(255, 197, 71, 0.2);
+}
+
+.nav-item.active svg {
+  stroke: var(--amber-gold);
+  filter: drop-shadow(0 0 4px rgba(255, 197, 71, 0.35));
+}
+
+/* Home Indicator mockup per iOS */
+.ios-indicator {
+  position: absolute;
+  bottom: 5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 110px;
+  height: 4px;
+  background-color: rgba(255, 255, 255, 0.22);
+  border-radius: 10px;
+  z-index: 110;
+  pointer-events: none;
+}
+
+/* Responsive per schermi mobile reali: nascondi il guscio del telefono */
+@media (max-width: 480px) {
+  body {
+    background-color: var(--night-black);
+  }
+
+  .phone-frame {
+    width: 100vw;
+    height: 100vh;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .phone-island {
+    display: none;
+  }
+
+  .phone-status-bar {
+    padding-top: 14px;
+  }
+}
