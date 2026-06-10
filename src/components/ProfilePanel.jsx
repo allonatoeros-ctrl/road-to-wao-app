@@ -292,6 +292,76 @@ export default function ProfilePanel({ requests, onNavigateToBacheca, onOpenCont
                 <div>Partenza da: <strong>{latestRequest.departure}</strong></div>
                 <div>Presentato come: <strong>{latestRequest.nickname}</strong></div>
               </div>
+
+              {/* Blocco Stato Viaggio & Compact Timeline */}
+              {(() => {
+                const isPending = !latestRequest.status || latestRequest.status === 'pending';
+                
+                let progressWidth = '0%';
+                let progressColor = 'var(--amber-gold)';
+                let activeBg = 'var(--amber-gold)';
+                let activeBorder = 'var(--amber-gold)';
+                let activeShadow = 'rgba(255, 197, 71, 0.4)';
+                let statusMessage = '';
+
+                if (isApproved) {
+                  progressWidth = '100%';
+                  progressColor = 'var(--turquoise)';
+                  activeBg = 'var(--turquoise)';
+                  activeBorder = 'var(--turquoise)';
+                  activeShadow = 'rgba(42, 242, 224, 0.4)';
+                  statusMessage = 'Crew sbloccata';
+                } else if (isRejected) {
+                  progressWidth = '66.6%';
+                  progressColor = 'rgba(255, 106, 0, 0.7)';
+                  activeBg = 'rgba(255, 106, 0, 0.7)';
+                  activeBorder = 'rgba(255, 106, 0, 0.7)';
+                  activeShadow = 'rgba(255, 106, 0, 0.3)';
+                  statusMessage = 'Questa crew non è disponibile, puoi provarne un’altra';
+                } else {
+                  progressWidth = '33.3%';
+                  progressColor = 'var(--amber-gold)';
+                  activeBg = 'var(--amber-gold)';
+                  activeBorder = 'var(--amber-gold)';
+                  activeShadow = 'rgba(255, 197, 71, 0.4)';
+                  statusMessage = 'La crew sta valutando la tua richiesta';
+                }
+
+                const compactTimelineStyle = {
+                  '--progress-color': progressColor,
+                  '--active-bg': activeBg,
+                  '--active-border': activeBorder,
+                  '--active-shadow': activeShadow,
+                };
+
+                return (
+                  <div className="profile-status-block">
+                    <div className="profile-status-title wao-display">Stato viaggio</div>
+                    
+                    <div className="compact-timeline-container" style={compactTimelineStyle}>
+                      <div className="compact-timeline">
+                        <div className="compact-timeline-progress" style={{ width: progressWidth }} />
+                        
+                        {/* Step 1 */}
+                        <div className="compact-timeline-step active" />
+
+                        {/* Step 2 */}
+                        <div className={`compact-timeline-step active ${isPending ? 'active-pulse' : ''}`} />
+
+                        {/* Step 3 */}
+                        <div className={`compact-timeline-step ${isApproved || isRejected ? 'active' : ''}`} />
+
+                        {/* Step 4 */}
+                        <div className={`compact-timeline-step ${isApproved ? 'active' : ''}`} />
+                      </div>
+                    </div>
+
+                    <div className="profile-status-message">
+                      {statusMessage}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           );
         })() : (

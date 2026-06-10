@@ -114,6 +114,89 @@ export default function MessagesPanel({ requests, onFindRide, onOpenControlRoom 
                   )}
                 </div>
 
+                {/* Mini Timeline Visiva */}
+                {(() => {
+                  let progressWidth = '0%';
+                  let progressColor = 'var(--amber-gold)';
+                  let activeBg = 'var(--amber-gold)';
+                  let activeBorder = 'var(--amber-gold)';
+                  let activeShadow = 'rgba(255, 197, 71, 0.4)';
+                  let activeLabelColor = 'var(--text-main)';
+                  let activeTextColor = '#0b0c1e';
+
+                  if (isApproved) {
+                    progressWidth = '100%';
+                    progressColor = 'var(--turquoise)';
+                    activeBg = 'var(--turquoise)';
+                    activeBorder = 'var(--turquoise)';
+                    activeShadow = 'rgba(42, 242, 224, 0.4)';
+                    activeLabelColor = 'var(--text-main)';
+                  } else if (isRejected) {
+                    progressWidth = '66.6%';
+                    progressColor = 'rgba(255, 106, 0, 0.7)';
+                    activeBg = 'rgba(255, 106, 0, 0.7)';
+                    activeBorder = 'rgba(255, 106, 0, 0.7)';
+                    activeShadow = 'rgba(255, 106, 0, 0.3)';
+                    activeLabelColor = 'var(--text-soft)';
+                    activeTextColor = '#fff';
+                  } else {
+                    progressWidth = '33.3%';
+                    progressColor = 'var(--amber-gold)';
+                    activeBg = 'var(--amber-gold)';
+                    activeBorder = 'var(--amber-gold)';
+                    activeShadow = 'rgba(255, 197, 71, 0.4)';
+                    activeLabelColor = 'var(--text-main)';
+                  }
+
+                  const timelineStyle = {
+                    '--progress-color': progressColor,
+                    '--active-bg': activeBg,
+                    '--active-border': activeBorder,
+                    '--active-shadow': activeShadow,
+                    '--active-label-color': activeLabelColor,
+                    '--active-text-color': activeTextColor,
+                  };
+
+                  return (
+                    <div className="mini-timeline-container" style={timelineStyle}>
+                      <div className="mini-timeline">
+                        <div className="mini-timeline-progress" style={{ width: progressWidth }} />
+                        
+                        {/* Step 1: Richiesta inviata */}
+                        <div className="mini-timeline-step active">
+                          <div className="mini-timeline-dot">✓</div>
+                          <span className="mini-timeline-label">Richiesta inviata</span>
+                        </div>
+
+                        {/* Step 2: In review */}
+                        <div className={`mini-timeline-step active ${isPending ? 'active-pulse' : ''}`}>
+                          <div className="mini-timeline-dot">{isPending ? '•' : '✓'}</div>
+                          <span className="mini-timeline-label">In review</span>
+                        </div>
+
+                        {/* Step 3: Approvazione crew / Non approvata */}
+                        {isRejected ? (
+                          <div className="mini-timeline-step active">
+                            <div className="mini-timeline-dot">✕</div>
+                            <span className="mini-timeline-label" style={{ color: 'var(--solar-orange)' }}>Non approvata</span>
+                          </div>
+                        ) : (
+                          <div className={`mini-timeline-step ${isApproved ? 'active' : ''}`}>
+                            <div className="mini-timeline-dot">{isApproved ? '✓' : '3'}</div>
+                            <span className="mini-timeline-label">Approvazione crew</span>
+                          </div>
+                        )}
+
+                        {/* Step 4: Crew sbloccata */}
+                        <div className={`mini-timeline-step ${isApproved ? 'active' : ''}`}>
+                          <div className="mini-timeline-dot">{isApproved ? '✓' : '4'}</div>
+                          <span className="mini-timeline-label">Crew sbloccata</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Approved Box: telegram crew unlock */}
                 {isApproved && (
                   <div className="telegram-unlocked-card" style={{

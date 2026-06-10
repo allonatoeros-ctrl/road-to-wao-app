@@ -1570,3 +1570,196 @@
   letter-spacing: 0.05em;
   color: var(--text-muted);
 }
+
+/* --- MINI TIMELINE FOR REQUEST STATUS --- */
+.mini-timeline-container {
+  margin: 16px 0 12px 0;
+  padding: 0 4px;
+}
+
+.mini-timeline {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  position: relative;
+  margin-bottom: 6px;
+}
+
+.mini-timeline::before {
+  content: '';
+  position: absolute;
+  top: 10px; /* center of the 20px dot */
+  left: 24px;
+  right: 24px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  z-index: 0;
+}
+
+.mini-timeline-progress {
+  position: absolute;
+  top: 10px;
+  left: 24px;
+  height: 2px;
+  background: var(--progress-color, var(--amber-gold));
+  z-index: 1;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.mini-timeline-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  position: relative;
+  z-index: 2;
+  text-align: center;
+}
+
+.mini-timeline-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #0b0c1e;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-muted);
+  transition: all 0.3s ease;
+  margin-bottom: 6px;
+  box-shadow: 0 0 0 transparent;
+}
+
+.mini-timeline-step.active .mini-timeline-dot {
+  background: var(--active-bg);
+  border-color: var(--active-border);
+  color: var(--active-text-color, #0b0c1e);
+  box-shadow: 0 0 10px var(--active-shadow);
+}
+
+.mini-timeline-step.active-pulse .mini-timeline-dot {
+  animation: wao-dot-pulse 2s infinite ease-in-out alternate;
+}
+
+@keyframes wao-dot-pulse {
+  0% {
+    box-shadow: 0 0 4px var(--active-shadow);
+    transform: scale(1);
+  }
+  100% {
+    box-shadow: 0 0 12px var(--active-shadow);
+    transform: scale(1.08);
+  }
+}
+
+.mini-timeline-label {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-muted);
+  max-width: 72px;
+  line-height: 1.25;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  transition: color 0.3s ease;
+}
+
+.mini-timeline-step.active .mini-timeline-label {
+  color: var(--active-label-color, var(--text-main));
+}
+
+/* --- COMPACT TIMELINE FOR PROFILE PANEL --- */
+.compact-timeline-container {
+  margin: 12px 0 6px 0;
+  padding: 0 8px;
+}
+
+.compact-timeline {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+  margin-bottom: 8px;
+}
+
+.compact-timeline::before {
+  content: '';
+  position: absolute;
+  top: 4px; /* center of the 8px dot */
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  z-index: 0;
+}
+
+.compact-timeline-progress {
+  position: absolute;
+  top: 4px;
+  left: 8px;
+  height: 2px;
+  background: var(--progress-color, var(--amber-gold));
+  z-index: 1;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.compact-timeline-step {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #0b0c1e;
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  z-index: 2;
+  transition: all 0.3s ease;
+  box-shadow: 0 0 0 transparent;
+}
+
+.compact-timeline-step.active {
+  background: var(--active-bg);
+  border-color: var(--active-border);
+  box-shadow: 0 0 6px var(--active-shadow);
+}
+
+.compact-timeline-step.active-pulse {
+  animation: wao-compact-pulse 1.5s infinite ease-in-out alternate;
+}
+
+@keyframes wao-compact-pulse {
+  0% {
+    box-shadow: 0 0 2px var(--active-shadow);
+    transform: scale(1);
+  }
+  100% {
+    box-shadow: 0 0 8px var(--active-shadow);
+    transform: scale(1.15);
+  }
+}
+
+.profile-status-block {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.profile-status-title {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.profile-status-message {
+  font-size: 11px;
+  font-weight: 500;
+  text-align: center;
+  color: var(--text-soft);
+  line-height: 1.35;
+}
