@@ -328,10 +328,15 @@ function App() {
           <div className="app-content">
             <MessagesPanel 
               requests={requests} 
+              rides={rides}
+              joinRequests={joinRequests}
+              generalRequests={generalRequests}
               onFindRide={() => setCurrentTab('bacheca')} 
               onOpenControlRoom={() => setCurrentTab('control-room')}
               onArchiveRequest={(id) => {
                 setRequests(prev => prev.map(r => r.id === id ? { ...r, archived: true } : r));
+                setJoinRequests(prev => prev.map(r => r.id === id ? { ...r, archived: true } : r));
+                setGeneralRequests(prev => prev.map(r => r.id === id ? { ...r, archived: true } : r));
               }}
             />
           </div>
@@ -341,6 +346,9 @@ function App() {
           <div className="app-content">
             <ProfilePanel 
               requests={requests} 
+              rides={rides}
+              joinRequests={joinRequests}
+              generalRequests={generalRequests}
               userProfile={userProfile}
               onUpdateProfile={handleUpdateProfile}
               onNavigateToBacheca={() => setCurrentTab('bacheca')} 
@@ -366,6 +374,8 @@ function App() {
                   }
                   return prev;
                 });
+                setJoinRequests(prev => prev.map(r => r.id === idOrIndex ? { ...r, status: newStatus } : r));
+                setGeneralRequests(prev => prev.map(r => r.id === idOrIndex ? { ...r, status: newStatus } : r));
               }}
               onClose={() => setCurrentTab('messaggi')}
             />

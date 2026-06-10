@@ -7,7 +7,16 @@ function getEntryKey(entry, index) {
   return `${entry?.type || 'req'}-${entry?.route || ''}-${entry?.nickname || ''}-${index}`;
 }
 
-export default function ProfilePanel({ requests, userProfile, onUpdateProfile, onNavigateToBacheca, onOpenControlRoom }) {
+export default function ProfilePanel({ 
+  requests = [], 
+  rides = [], 
+  joinRequests = [], 
+  generalRequests = [], 
+  userProfile, 
+  onUpdateProfile, 
+  onNavigateToBacheca, 
+  onOpenControlRoom 
+}) {
   const profile = userProfile;
 
   const [isEditing, setIsEditing] = useState(false);
@@ -34,47 +43,127 @@ export default function ProfilePanel({ requests, userProfile, onUpdateProfile, o
     setIsEditing(false);
   };
 
-  // Sort requests from newest to oldest by createdAt / id
-  const sortedRequests = [...requests].sort((a, b) => {
-    const dateA = a.createdAt ? new Date(a.createdAt).getTime() : a.id || 0;
-    const dateB = b.createdAt ? new Date(b.createdAt).getTime() : b.id || 0;
-    return dateB - dateA;
-  });
+  const hasNewModelData = (joinRequests && joinRequests.length > 0) || (generalRequests && generalRequests.length > 0);
 
-  const nonArchivedRequests = sortedRequests.filter(r => !r.archived);
-  const latestRequest = nonArchivedRequests[0];
-  const recentActivities = nonArchivedRequests.slice(0, 3);
-
-  // Compute status counts
-  const totalCount = requests.length;
-  const approvedCount = requests.filter(r => r.status === 'approved').length;
-  const pendingCount = requests.filter(r => !r.status || r.status === 'pending').length;
-  const rejectedCount = requests.filter(r => r.status === 'rejected').length;
-
-  // Travel status text
-  let currentTravelStatusText = 'Nessuna attività';
+  // -------------------------------------------------------------
+  // STATUS & COUNTS COMPUTATION
+  // -------------------------------------------------------------
+  let currentTravelStatusText = 'Nessuna crew attiva';
+  let travelStatusSubtitleText = 'Vai in Bacheca per cercare o offrire un passaggio.';
   let travelStatusColor = 'var(--text-soft)';
+  let travelStatusBadge = 'nessuno';
+  let approvedJoinRequest = null;
+  let pendingJoinRequest = null;
+  let activeGeneralRequest = null;
+  let matchedRide = null;
 
-  if (latestRequest) {
-    const isPending = !latestRequest.status || latestRequest.status === 'pending';
-    const isApproved = latestRequest.status === 'approved';
-    const isRejected = latestRequest.status === 'rejected';
-    const isOffer = latestRequest.type === 'offer';
+  // Count variables
+  let statPending = 0;
+  let statApproved = 0;
+  let statGeneralActive = 0;
+  let statRejectedArchived = 0;
 
-    if (isPending) {
-      currentTravelStatusText = 'In review';
-      travelStatusColor = 'var(--amber-gold)';
-    } else if (isApproved) {
-      if (isOffer) {
-        currentTravelStatusText = 'Offerta approvata';
-      } else {
-        currentTravelStatusText = 'Crew sbloccata';
-      }
+  // Ultima attività variables
+  let latestRequest = null;
+  let recentActivities = [];
+
+  if (hasNewModelData) {
+    // Priority status checks
+    approvedJoinRequest = (joinRequests || []).find(r => r.status === 'approved' && !r.archived);
+    pendingJoinRequest = (joinRequests || []).find(r => r.status === 'pending' && !r.archived);
+    activeGeneralRequest = (generalRequests || []).find(r => r.status === 'active' && !r.archived);
+
+    if (approvedJoinRequest) {
+      matchedRide = rides.find(rd => rd.id === approvedJoinRequest.rideId);
+      currentTravelStatusText = 'Crew attiva';
       travelStatusColor = 'var(--turquoise)';
-    } else if (isRejected) {
-      currentTravelStatusText = 'Da riprovare';
-      travelStatusColor = 'var(--solar-orange)';
+      travelStatusBadge = 'approved';
+      if (matchedRide) {
+        travelStatusSubtitleText = `${matchedRide.departureCity} → ${matchedRide.destination || 'WAO'} (Driver: ${matchedRide.driver})`;
+      } else {
+        travelStatusSubtitleText = 'Crew sbloccata';
+      }
+    } else if (pendingJoinRequest) {
+      matchedRide = rides.find(rd => rd.id === pendingJoinRequest.rideId);
+      currentTravelStatusText = 'Richiesta in approvazione';
+      travelStatusColor = 'var(--amber-gold)';
+      travelStatusBadge = 'pending';
+      if (matchedRide) {
+        travelStatusSubtitleText = `${matchedRide.departureCity} → ${matchedRide.destination || 'WAO'} (Driver: ${matchedRide.driver})`;
+      } else {
+        travelStatusSubtitleText = 'Richiesta in attesa';
+      }
+    } else if (activeGeneralRequest) {
+      currentTravelStatusText = 'Richiesta generale attiva';
+      travelStatusSubtitleText = 'Stiamo cercando una crew compatibile.';
+      travelStatusColor = 'var(--amber-gold)';
+      travelStatusBadge = 'active';
     }
+
+    // Counts
+    statPending = (joinRequests || []).filter(r => r.status === 'pending').length;
+    statApproved = (joinRequests || []).filter(r => r.status === 'approved').length;
+    statGeneralActive = (generalRequests || []).filter(r => r.status === 'active').length;
+    statRejectedArchived = 
+      (joinRequests || []).filter(r => r.status === 'rejected' || r.archived).length +
+      (generalRequests || []).filter(r => r.status === 'rejected' || r.archived).length;
+
+    // Latest and recent activities
+    const allNewRequests = [
+      ...(joinRequests || []).map(r => ({ ...r, reqType: 'join' })),
+      ...(generalRequests || []).map(r => ({ ...r, reqType: 'general' }))
+    ];
+
+    const sortedNew = [...allNewRequests].sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA;
+    });
+
+    const nonArchivedNew = sortedNew.filter(r => !r.archived);
+    latestRequest = nonArchivedNew[0];
+    recentActivities = nonArchivedNew.slice(0, 3);
+
+  } else {
+    // Legacy requests fallback
+    const sortedLegacy = [...(requests || [])].sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : a.id || 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : b.id || 0;
+      return dateB - dateA;
+    });
+
+    const nonArchivedLegacy = sortedLegacy.filter(r => !r.archived);
+    latestRequest = nonArchivedLegacy[0];
+    recentActivities = nonArchivedLegacy.slice(0, 3);
+
+    if (latestRequest) {
+      const isPending = !latestRequest.status || latestRequest.status === 'pending';
+      const isApproved = latestRequest.status === 'approved';
+      const isRejected = latestRequest.status === 'rejected';
+      const isOffer = latestRequest.type === 'offer';
+
+      if (isPending) {
+        currentTravelStatusText = 'In review';
+        travelStatusSubtitleText = latestRequest.route || 'Richiesta di viaggio';
+        travelStatusColor = 'var(--amber-gold)';
+        travelStatusBadge = 'pending';
+      } else if (isApproved) {
+        currentTravelStatusText = isOffer ? 'Offerta approvata' : 'Crew sbloccata';
+        travelStatusSubtitleText = latestRequest.route || 'Viaggio confermato';
+        travelStatusColor = 'var(--turquoise)';
+        travelStatusBadge = 'approved';
+      } else if (isRejected) {
+        currentTravelStatusText = 'Da riprovare';
+        travelStatusSubtitleText = 'Richiesta non approvata';
+        travelStatusColor = 'var(--solar-orange)';
+        travelStatusBadge = 'rejected';
+      }
+    }
+
+    statPending = (requests || []).filter(r => !r.status || r.status === 'pending').length;
+    statApproved = (requests || []).filter(r => r.status === 'approved').length;
+    statGeneralActive = 0; // Legacy doesn't have split arrays
+    statRejectedArchived = (requests || []).filter(r => r.status === 'rejected' || r.archived).length;
   }
 
   return (
@@ -232,23 +321,23 @@ export default function ProfilePanel({ requests, userProfile, onUpdateProfile, o
         )}
       </div>
 
-      {/* 2. Riepilogo 2x2 */}
+      {/* 2. Riepilogo Stats Grid */}
       <div className="profile-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
         <div className="profile-stat-card">
-          <span className="stat-value" style={{ color: 'var(--text-main)' }}>{totalCount}</span>
-          <span className="stat-label">Totali</span>
+          <span className="stat-value" style={{ color: 'var(--amber-gold)' }}>{statPending}</span>
+          <span className="stat-label">{hasNewModelData ? "Join Pendenti" : "In attesa"}</span>
         </div>
         <div className="profile-stat-card">
-          <span className="stat-value" style={{ color: 'var(--amber-gold)' }}>{pendingCount}</span>
-          <span className="stat-label">In attesa</span>
+          <span className="stat-value" style={{ color: 'var(--turquoise)' }}>{statApproved}</span>
+          <span className="stat-label">{hasNewModelData ? "Join Approvate" : "Approvate"}</span>
         </div>
         <div className="profile-stat-card">
-          <span className="stat-value" style={{ color: 'var(--turquoise)' }}>{approvedCount}</span>
-          <span className="stat-label">Approvate</span>
+          <span className="stat-value" style={{ color: 'var(--turquoise)' }}>{statGeneralActive}</span>
+          <span className="stat-label">{hasNewModelData ? "Generali Attive" : "Totali"}</span>
         </div>
         <div className="profile-stat-card">
-          <span className="stat-value" style={{ color: 'var(--solar-orange)' }}>{rejectedCount}</span>
-          <span className="stat-label">Rifiutate</span>
+          <span className="stat-value" style={{ color: 'var(--solar-orange)' }}>{statRejectedArchived}</span>
+          <span className="stat-label">{hasNewModelData ? "Rifiutate/Arch." : "Rifiutate"}</span>
         </div>
       </div>
 
@@ -258,26 +347,66 @@ export default function ProfilePanel({ requests, userProfile, onUpdateProfile, o
           Stato viaggio attuale
         </h3>
         <div className="ride-card card-open" style={{ 
-          padding: '12px 14px', 
+          padding: '14px', 
           borderLeft: `3px solid ${travelStatusColor}`,
           display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
+          flexDirection: 'column',
+          gap: '8px'
         }}>
-          <span style={{ fontSize: '13px', color: 'var(--text-main)', fontWeight: 'bold' }}>
-            {currentTravelStatusText}
-          </span>
-          <span className={`ride-badge`} style={{ 
-            fontSize: '8.5px', 
-            padding: '2px 8px',
-            textTransform: 'uppercase',
-            fontWeight: 'bold',
-            background: travelStatusColor === 'var(--turquoise)' ? 'rgba(42, 242, 224, 0.15)' : (travelStatusColor === 'var(--amber-gold)' ? 'rgba(255, 197, 71, 0.15)' : (travelStatusColor === 'var(--solar-orange)' ? 'rgba(255, 106, 0, 0.15)' : 'rgba(255, 255, 255, 0.05)')),
-            color: travelStatusColor,
-            border: `1px solid ${travelStatusColor}`
-          }}>
-            {latestRequest ? (latestRequest.status || 'pending') : 'nessuno'}
-          </span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '13.5px', color: 'var(--text-main)', fontWeight: 'bold' }}>
+              {currentTravelStatusText}
+            </span>
+            <span className={`ride-badge`} style={{ 
+              fontSize: '8.5px', 
+              padding: '2px 8px',
+              textTransform: 'uppercase',
+              fontWeight: 'bold',
+              background: travelStatusColor === 'var(--turquoise)' ? 'rgba(42, 242, 224, 0.15)' : (travelStatusColor === 'var(--amber-gold)' ? 'rgba(255, 197, 71, 0.15)' : (travelStatusColor === 'var(--solar-orange)' ? 'rgba(255, 106, 0, 0.15)' : 'rgba(255, 255, 255, 0.05)')),
+              color: travelStatusColor,
+              border: `1px solid ${travelStatusColor}`
+            }}>
+              {travelStatusBadge}
+            </span>
+          </div>
+
+          <div style={{ fontSize: '12px', color: 'var(--text-soft)' }}>
+            {travelStatusSubtitleText}
+          </div>
+
+          {/* Telegram link (shown ONLY if approvedJoinRequest exists and matchedRide has telegramUrl) */}
+          {approvedJoinRequest && matchedRide && (
+            <div style={{ marginTop: '4px', display: 'flex', justifyContent: 'flex-start' }}>
+              <a 
+                href={matchedRide.telegramUrl || '#'} 
+                target={matchedRide.telegramUrl && matchedRide.telegramUrl !== '#' ? "_blank" : undefined}
+                rel="noopener noreferrer"
+                onClick={(e) => {
+                  if (!matchedRide.telegramUrl || matchedRide.telegramUrl === '#') {
+                    e.preventDefault();
+                  }
+                }}
+                style={{ 
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: '#0088cc',
+                  color: '#fff',
+                  padding: '6px 14px',
+                  borderRadius: '999px',
+                  textDecoration: 'none',
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                  boxShadow: '0 4px 10px rgba(0, 136, 204, 0.3)'
+                }}
+              >
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.11.02-1.93 1.23-5.46 3.62-.51.35-.98.53-1.39.51-.46-.01-1.35-.26-2.01-.48-.81-.27-1.46-.42-1.4-.88.03-.24.38-.49 1.04-.75 4.08-1.77 6.8-2.94 8.16-3.5 3.88-1.61 4.68-1.89 5.21-1.9.12 0 .38.03.55.17.14.12.18.28.19.4z" />
+                </svg>
+                Apri Telegram Crew
+              </a>
+            </div>
+          )}
         </div>
       </div>
 
@@ -286,41 +415,70 @@ export default function ProfilePanel({ requests, userProfile, onUpdateProfile, o
         <h3 className="wao-display" style={{ fontSize: '12px', color: 'var(--text-soft)', marginBottom: '8px', letterSpacing: '0.06em' }}>
           Ultima attività
         </h3>
-        {latestRequest ? (
-          <div className="ride-card card-open" style={{ padding: '14px', borderLeft: `3px solid ${travelStatusColor}`, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span className="wao-display" style={{ fontSize: '10px', color: travelStatusColor, fontWeight: 'bold' }}>
-                {latestRequest.type === 'offer' ? "Offerta Passaggio" : "Richiesta Join"}
-              </span>
-              <span style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>
-                {latestRequest.createdAt ? new Date(latestRequest.createdAt).toLocaleDateString() : ''}
-              </span>
-            </div>
+        {latestRequest ? (() => {
+          const isJoin = latestRequest.reqType === 'join';
+          const isLegacy = !latestRequest.reqType;
+          const isOffer = isLegacy && latestRequest.type === 'offer';
+          
+          let title = "Richiesta generale";
+          if (isJoin) {
+            title = "Richiesta Join";
+          } else if (isOffer) {
+            title = "Offerta Passaggio";
+          } else if (isLegacy) {
+            title = "Richiesta Join (Legacy)";
+          }
 
-            <div className="ride-route wao-display" style={{ fontSize: '14.5px', margin: '4px 0 2px 0', textTransform: 'none' }}>
-              {latestRequest.route}
-            </div>
+          let departure = latestRequest.departureCity || latestRequest.departure || 'WAO';
+          let route = isJoin 
+            ? `${departure} → WAO` 
+            : (isLegacy ? latestRequest.route : `${departure} → WAO (Generale)`);
 
-            <div style={{ fontSize: '12px', color: 'var(--text-soft)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <div>Città: <strong>{latestRequest.departure}</strong></div>
-              <div>Tipo viaggio: <strong>{latestRequest.tripType || 'n/d'}</strong></div>
-              <div>Fascia oraria: <strong>{latestRequest.travelTime || 'n/d'}</strong></div>
-              <div>
-                {latestRequest.type === 'offer' ? (
-                  <>Spazio bagagli: <strong>{latestRequest.luggageCapacity || 'n/d'}</strong> (Posti: {latestRequest.spots})</>
-                ) : (
-                  <>Bagaglio: <strong>{latestRequest.luggageNeed || 'n/d'}</strong> (Persone: {latestRequest.passengers})</>
-                )}
+          let status = latestRequest.status || 'pending';
+          if (latestRequest.reqType === 'general' && status === 'active') {
+            status = 'attiva';
+          }
+
+          let actColor = 'var(--amber-gold)';
+          if (status === 'approved') actColor = 'var(--turquoise)';
+          if (status === 'rejected') actColor = 'var(--solar-orange)';
+
+          return (
+            <div className="ride-card card-open" style={{ padding: '14px', borderLeft: `3px solid ${actColor}`, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span className="wao-display" style={{ fontSize: '10px', color: actColor, fontWeight: 'bold' }}>
+                  {title}
+                </span>
+                <span style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>
+                  {latestRequest.createdAt ? new Date(latestRequest.createdAt).toLocaleDateString() : ''}
+                </span>
               </div>
-              <div>
-                Status: <strong style={{ color: travelStatusColor }}>{latestRequest.status || 'pending'}</strong>
+
+              <div className="ride-route wao-display" style={{ fontSize: '14.5px', margin: '4px 0 2px 0', textTransform: 'none' }}>
+                {route}
+              </div>
+
+              <div style={{ fontSize: '12px', color: 'var(--text-soft)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div>Città: <strong>{departure}</strong></div>
+                {latestRequest.tripType && <div>Tipo viaggio: <strong>{latestRequest.tripType}</strong></div>}
+                {latestRequest.travelTime && <div>Fascia oraria: <strong>{latestRequest.travelTime}</strong></div>}
+                <div>
+                  {isOffer ? (
+                    <>Spazio bagagli: <strong>{latestRequest.luggageCapacity || 'n/d'}</strong> (Posti: {latestRequest.spots})</>
+                  ) : (
+                    <>Bagaglio: <strong>{latestRequest.luggageNeed || 'n/d'}</strong> (Persone: {latestRequest.passengers || latestRequest.peopleCount || '1'})</>
+                  )}
+                </div>
+                <div>
+                  Status: <strong style={{ color: actColor }}>{status}</strong>
+                </div>
               </div>
             </div>
-          </div>
-        ) : (
+          );
+        })() : (
           <div className="placeholder-card" style={{ padding: '18px', textAlign: 'center' }}>
             <p className="placeholder-text" style={{ fontSize: '12px', margin: 0 }}>
-              {requests.length > 0 ? "Nessuna attività attiva al momento." : "Nessuna attività registrata."}
+              Nessuna attività registrata.
             </p>
           </div>
         )}
@@ -334,8 +492,26 @@ export default function ProfilePanel({ requests, userProfile, onUpdateProfile, o
         {recentActivities.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {recentActivities.map((req, idx) => {
-              const isOffer = req.type === 'offer';
-              const status = req.status || 'pending';
+              const isJoin = req.reqType === 'join';
+              const isLegacy = !req.reqType;
+              const isOffer = isLegacy && req.type === 'offer';
+              
+              let title = "Richiesta generale";
+              if (isJoin) {
+                title = "Richiesta Join";
+              } else if (isOffer) {
+                title = "Offerta Passaggio";
+              }
+
+              let departure = req.departureCity || req.departure || 'WAO';
+              let route = isJoin 
+                ? `${departure} → WAO` 
+                : (isLegacy ? req.route : `${departure} → WAO (Generale)`);
+
+              let status = req.status || 'pending';
+              if (req.reqType === 'general' && status === 'active') {
+                status = 'attiva';
+              }
 
               let statusBadgeColor = 'var(--amber-gold)';
               let statusBadgeBg = 'rgba(255, 197, 71, 0.1)';
@@ -363,9 +539,9 @@ export default function ProfilePanel({ requests, userProfile, onUpdateProfile, o
                 >
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                     <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 'bold', textTransform: 'uppercase' }}>
-                      {isOffer ? "🚗 Offerta Passaggio" : "👥 Richiesta Join"}
+                      {title}
                     </span>
-                    <strong style={{ color: 'var(--text-main)' }}>{req.route}</strong>
+                    <strong style={{ color: 'var(--text-main)', fontSize: '12.5px' }}>{route}</strong>
                   </div>
                   <span style={{
                     fontSize: '9px',
@@ -386,7 +562,7 @@ export default function ProfilePanel({ requests, userProfile, onUpdateProfile, o
         ) : (
           <div className="placeholder-card" style={{ padding: '18px', textAlign: 'center' }}>
             <p className="placeholder-text" style={{ fontSize: '11px', margin: 0 }}>
-              {requests.length > 0 ? "Nessuna attività attiva al momento." : "Nessuna attività nello storico."}
+              Nessuna attività nello storico.
             </p>
           </div>
         )}
