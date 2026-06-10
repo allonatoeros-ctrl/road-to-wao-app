@@ -1,9 +1,22 @@
 import React from 'react';
 
+// Stable key helper function
+function getEntryKey(entry, index) {
+  if (entry && entry.id) return entry.id;
+  if (entry && entry.createdAt) return entry.createdAt;
+  return `${entry?.type || 'req'}-${entry?.route || ''}-${entry?.nickname || ''}-${index}`;
+}
+
 export default function AdminPanel({ requests, onUpdateStatus, onClose }) {
-  // We can show all requests, but prioritize pending ones.
-  const pendingRequests = requests.filter(r => r.status === 'pending' || !r.status);
-  const processedRequests = requests.filter(r => r.status && r.status !== 'pending');
+  // Sort requests from newest to oldest by createdAt
+  const sortedRequests = [...requests].sort((a, b) => {
+    const dateA = a.createdAt ? new Date(a.createdAt).getTime() : a.id || 0;
+    const dateB = b.createdAt ? new Date(b.createdAt).getTime() : b.id || 0;
+    return dateB - dateA;
+  });
+
+  const pendingRequests = sortedRequests.filter(r => r.status === 'pending' || !r.status);
+  const processedRequests = sortedRequests.filter(r => r.status && r.status !== 'pending');
 
   return (
     <div className="admin-panel-content" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
@@ -40,23 +53,32 @@ export default function AdminPanel({ requests, onUpdateStatus, onClose }) {
           {/* Richieste da gestire */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <h3 className="wao-display" style={{ fontSize: '12px', color: 'var(--amber-gold)', letterSpacing: '0.05em' }}>
-              Richieste Pendenti ({pendingRequests.length})
+              Moderazione Pendenti ({pendingRequests.length})
             </h3>
             
             {pendingRequests.length === 0 ? (
               <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', fontStyle: 'italic', padding: '10px 0' }}>
-                Non ci sono richieste in attesa di approvazione.
+                Non ci sono attività in attesa di approvazione.
               </p>
             ) : (
-              requests.map((req, index) => {
-                if (req.status && req.status !== 'pending') return null;
+              pendingRequests.map((req, index) => {
+                const isOffer = req.type === 'offer';
                 return (
-                  <div key={req.id || `${req.route}-${req.nickname}-${req.departure}-${req.message ? req.message.substring(0, 15) : ''}`} className="ride-card card-pending-gold">
+                  <div key={getEntryKey(req, index)} className="ride-card card-pending-gold">
                     <div className="ride-card-glow-gold" aria-hidden="true"></div>
                     
-                    <div className="ride-card-header">
-                      <span className="wao-display" style={{ fontSize: '11px', color: 'var(--text-soft)', fontWeight: 'bold' }}>
-                        Driver View
+                    <div className="ride-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span className="ride-type-tag" style={{
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        fontSize: '9px',
+                        fontWeight: 'bold',
+                        textTransform: 'uppercase',
+                        background: isOffer ? 'rgba(177, 43, 255, 0.2)' : 'rgba(42, 242, 224, 0.2)',
+                        color: isOffer ? '#d18eff' : 'var(--turquoise)',
+                        border: isOffer ? '1px solid rgba(177, 43, 255, 0.4)' : '1px solid rgba(42, 242, 224, 0.4)'
+                      }}>
+                        {isOffer ? "🚗 Offerta Passaggio" : "👥 Richiesta Join"}
                       </span>
                       <span className="ride-badge badge-pending-gold">
                         Pendente
@@ -69,9 +91,23 @@ export default function AdminPanel({ requests, onUpdateStatus, onClose }) {
                       </div>
                       
                       <div style={{ fontSize: '12.5px', color: 'var(--text-soft)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <div>Passeggero: <strong>{req.nickname}</strong></div>
-                        <div>Città di partenza: <strong>{req.departure}</strong></div>
-                        <div>Persone: <strong>{req.passengers} {req.passengers === '1' ? 'persona' : 'persone'}</strong></div>
+                        {isOffer ? (
+                          <>
+                            <div>Driver: <strong>{req.nickname}</strong></div>
+                            <div>Città di partenza: <strong>{req.departure}</strong></div>
+                            {req.date && <div>Quando: <strong>{req.date}</strong></div>}
+                            <div>Posti disponibili: <strong>{req.spots}</strong></div>
+                            {req.stops && <div>Tappe: <strong>{req.stops}</strong></div>}
+                            {req.luggage && <div>Spazio bagagli: <strong>{req.luggage}</strong></div>}
+                            {req.vibe && <div>Vibe: <strong>{req.vibe}</strong></div>}
+                          </>
+                        ) : (
+                          <>
+                            <div>Passeggero: <strong>{req.nickname}</strong></div>
+                            <div>Città di partenza: <strong>{req.departure}</strong></div>
+                            <div>Persone: <strong>{req.passengers} {req.passengers === '1' ? 'persona' : 'persone'}</strong></div>
+                          </>
+                        )}
                       </div>
 
                       {req.message && (
@@ -95,7 +131,7 @@ export default function AdminPanel({ requests, onUpdateStatus, onClose }) {
                       <button
                         type="button"
                         className="wao-primary-button wao-display"
-                        onClick={() => onUpdateStatus(index, 'approved')}
+                        onClick={() => onUpdateStatus(req.id, 'approved')}
                         style={{ flex: 1, padding: '10px 14px', fontSize: '11px', background: 'linear-gradient(135deg, var(--turquoise), #17b3a4)', boxShadow: '0 0 10px rgba(42, 242, 224, 0.2)', color: '#0b0c1e' }}
                       >
                         Approva
@@ -103,7 +139,7 @@ export default function AdminPanel({ requests, onUpdateStatus, onClose }) {
                       <button
                         type="button"
                         className="wao-secondary-button wao-display"
-                        onClick={() => onUpdateStatus(index, 'rejected')}
+                        onClick={() => onUpdateStatus(req.id, 'rejected')}
                         style={{ flex: 1, padding: '10px 14px', fontSize: '11px' }}
                       >
                         Rifiuta
@@ -119,23 +155,32 @@ export default function AdminPanel({ requests, onUpdateStatus, onClose }) {
           {processedRequests.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '10px' }}>
               <h3 className="wao-display" style={{ fontSize: '12px', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>
-                Storico Richieste ({processedRequests.length})
+                Storico Moderazione ({processedRequests.length})
               </h3>
               
-              {requests.map((req, index) => {
-                if (!req.status || req.status === 'pending') return null;
+              {processedRequests.map((req, index) => {
                 const isApproved = req.status === 'approved';
+                const isOffer = req.type === 'offer';
                 return (
                   <div 
-                    key={req.id || `${req.route}-${req.nickname}-${req.departure}-${req.message ? req.message.substring(0, 15) : ''}`} 
+                    key={getEntryKey(req, index)} 
                     className={`ride-card ${isApproved ? 'card-approved' : 'card-rejected'}`}
                     style={{ opacity: 0.8 }}
                   >
                     {isApproved && <div className="ride-card-glow-approved" aria-hidden="true"></div>}
                     
-                    <div className="ride-card-header">
-                      <span className="wao-display" style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 'bold' }}>
-                        Driver View
+                    <div className="ride-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span className="ride-type-tag" style={{
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        fontSize: '9px',
+                        fontWeight: 'bold',
+                        textTransform: 'uppercase',
+                        background: isOffer ? 'rgba(177, 43, 255, 0.15)' : 'rgba(42, 242, 224, 0.15)',
+                        color: isOffer ? '#d18eff' : 'var(--turquoise)',
+                        border: isOffer ? '1px solid rgba(177, 43, 255, 0.3)' : '1px solid rgba(42, 242, 224, 0.3)'
+                      }}>
+                        {isOffer ? "🚗 Offerta" : "👥 Richiesta"}
                       </span>
                       <span className={`ride-badge ${isApproved ? 'badge-approved' : 'badge-rejected'}`}>
                         {isApproved ? 'Approvata' : 'Rifiutata'}
@@ -146,7 +191,10 @@ export default function AdminPanel({ requests, onUpdateStatus, onClose }) {
                       <div className="ride-route wao-display" style={{ fontSize: '14px', textTransform: 'none', margin: '2px 0' }}>
                         {req.route}
                       </div>
-                      <div>Passeggero: <strong>{req.nickname}</strong></div>
+                      <div style={{ color: 'var(--text-soft)' }}>
+                        {isOffer ? "Driver: " : "Passeggero: "}
+                        <strong>{req.nickname}</strong>
+                      </div>
                     </div>
                   </div>
                 );

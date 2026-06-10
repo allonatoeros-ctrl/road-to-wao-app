@@ -1,4 +1,4 @@
-export default function RoadBoard({ onJoinRide }) {
+export default function RoadBoard({ onJoinRide, onOfferRide }) {
   const rides = [
     {
       id: 1,
@@ -45,7 +45,7 @@ export default function RoadBoard({ onJoinRide }) {
         <button 
           type="button" 
           className="wao-secondary-button wao-display"
-          onClick={() => console.log('Offro posti bacheca click (mock)')}
+          onClick={() => onOfferRide && onOfferRide()}
         >
           <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2.5" fill="none" style={{ marginRight: '6px' }}>
             <line x1="12" y1="5" x2="12" y2="19" />

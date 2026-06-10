@@ -1,5 +1,12 @@
 import { useState, useEffect } from 'react';
 
+// Stable key helper function
+function getEntryKey(entry, index) {
+  if (entry && entry.id) return entry.id;
+  if (entry && entry.createdAt) return entry.createdAt;
+  return `${entry?.type || 'req'}-${entry?.route || ''}-${entry?.nickname || ''}-${index}`;
+}
+
 export default function ProfilePanel({ requests, userProfile, onUpdateProfile, onNavigateToBacheca, onOpenControlRoom }) {
   const profile = userProfile;
 
@@ -27,93 +34,104 @@ export default function ProfilePanel({ requests, userProfile, onUpdateProfile, o
     setIsEditing(false);
   };
 
-  const latestRequest = requests && requests[0];
-  const pendingRequestsCount = requests ? requests.filter(r => !r.status || r.status === 'pending').length : 0;
+  // Sort requests from newest to oldest by createdAt / id
+  const sortedRequests = [...requests].sort((a, b) => {
+    const dateA = a.createdAt ? new Date(a.createdAt).getTime() : a.id || 0;
+    const dateB = b.createdAt ? new Date(b.createdAt).getTime() : b.id || 0;
+    return dateB - dateA;
+  });
 
-  let profileStatusText = 'Nessuna';
-  let profileStatusColor = 'var(--text-soft)';
-  let crewStatusText = 'Non conf.';
-  let crewStatusColor = 'var(--text-soft)';
+  const latestRequest = sortedRequests[0];
+  const recentActivities = sortedRequests.slice(0, 3);
+
+  // Compute status counts
+  const totalCount = requests.length;
+  const approvedCount = requests.filter(r => r.status === 'approved').length;
+  const pendingCount = requests.filter(r => !r.status || r.status === 'pending').length;
+  const rejectedCount = requests.filter(r => r.status === 'rejected').length;
+
+  // Travel status text
+  let currentTravelStatusText = 'Nessuna attività';
+  let travelStatusColor = 'var(--text-soft)';
 
   if (latestRequest) {
-    if (latestRequest.status === 'approved') {
-      profileStatusText = 'Approvata';
-      profileStatusColor = 'var(--turquoise)';
-      crewStatusText = 'Sbloccata';
-      crewStatusColor = 'var(--turquoise)';
-    } else if (latestRequest.status === 'rejected') {
-      profileStatusText = 'Rifiutata';
-      profileStatusColor = 'var(--solar-orange)';
-      crewStatusText = 'Rifiutata';
-      crewStatusColor = 'var(--solar-orange)';
-    } else {
-      profileStatusText = 'In attesa';
-      profileStatusColor = 'var(--amber-gold)';
+    const isPending = !latestRequest.status || latestRequest.status === 'pending';
+    const isApproved = latestRequest.status === 'approved';
+    const isRejected = latestRequest.status === 'rejected';
+    const isOffer = latestRequest.type === 'offer';
+
+    if (isPending) {
+      currentTravelStatusText = 'In review';
+      travelStatusColor = 'var(--amber-gold)';
+    } else if (isApproved) {
+      if (isOffer) {
+        currentTravelStatusText = 'Offerta approvata';
+      } else {
+        currentTravelStatusText = 'Crew sbloccata';
+      }
+      travelStatusColor = 'var(--turquoise)';
+    } else if (isRejected) {
+      currentTravelStatusText = 'Da riprovare';
+      travelStatusColor = 'var(--solar-orange)';
     }
   }
 
   return (
     <div className="profile-panel-content" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
-      {/* Header */}
+      {/* Title Header */}
       <header className="board-header">
         <h1 className="board-title wao-display">Profilo viaggio</h1>
         <p className="board-subtitle">La tua identità leggera per trovare la crew giusta.</p>
       </header>
 
-      {/* Card principale */}
+      {/* Main Profile Info Card or Edit Form */}
       <div className="ride-card card-pending-gold" style={{ position: 'relative' }}>
         <div className="ride-card-glow-gold" aria-hidden="true"></div>
 
         {!isEditing ? (
-          <>
-            {/* View Mode */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '14px' }}>
-              {/* Avatar Icon / Orb */}
-              <div className="profile-avatar-orb">
-                <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none">
+          /* 1. Header profilo leggero */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <div className="profile-avatar-orb" style={{ flexShrink: 0 }}>
+                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" strokeWidth="2" fill="none">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                   <circle cx="12" cy="7" r="4" />
                 </svg>
               </div>
 
-              <div>
+              <div style={{ flex: 1 }}>
                 <h2 className="wao-display" style={{ fontSize: '18px', margin: 0, color: 'var(--text-main)', letterSpacing: '0.05em' }}>
                   {profile.nickname}
                 </h2>
-                <span className="ride-badge badge-pending-gold" style={{ marginTop: '4px', display: 'inline-block', fontSize: '9px' }}>
-                  {profile.badge}
-                </span>
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px', flexWrap: 'wrap' }}>
+                  <span className="ride-badge badge-pending-gold" style={{ fontSize: '9px', padding: '1px 6px' }}>
+                    {profile.badge}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>• {profile.status}</span>
+                </div>
               </div>
             </div>
 
-            {/* Dettagli Profilo */}
-            <div className="ride-details" style={{ marginTop: '8px', gap: '10px' }}>
-              <div className="ride-detail-item">
-                <svg viewBox="0 0 24 24" className="detail-icon" stroke="currentColor" strokeWidth="2" fill="none">
-                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                  <circle cx="12" cy="10" r="3" />
-                </svg>
-                <span className="detail-text">Partenza: <strong style={{ color: 'var(--text-main)' }}>{profile.departureCity}</strong></span>
-              </div>
-
-              <div className="ride-detail-item">
-                <svg viewBox="0 0 24 24" className="detail-icon" stroke="currentColor" strokeWidth="2" fill="none">
-                  <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                </svg>
-                <span className="detail-text">Vibe viaggio: <strong style={{ color: 'var(--text-main)' }}>{profile.vibe}</strong></span>
-              </div>
-
-              <div className="ride-detail-item">
-                <svg viewBox="0 0 24 24" className="detail-icon" stroke="currentColor" strokeWidth="2" fill="none">
-                  <circle cx="12" cy="12" r="10" />
-                  <polyline points="12 6 12 12 16 14" />
-                </svg>
-                <span className="detail-text">Stato festival: <strong style={{ color: 'var(--text-main)' }}>{profile.status}</strong></span>
-              </div>
+            {/* Departure and Vibe */}
+            <div style={{ 
+              display: 'flex', 
+              flexWrap: 'wrap', 
+              gap: '16px', 
+              fontSize: '12.5px', 
+              color: 'var(--text-soft)', 
+              borderTop: '1px solid rgba(255, 255, 255, 0.05)', 
+              paddingTop: '10px' 
+            }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                📍 Partenza: <strong style={{ color: 'var(--text-main)' }}>{profile.departureCity}</strong>
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                ✨ Vibe: <strong style={{ color: 'var(--text-main)' }}>{profile.vibe}</strong>
+              </span>
             </div>
 
-            {/* Modifica CTA & Control Room */}
-            <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+            {/* Edit / Control Room CTAs */}
+            <div style={{ marginTop: '6px', display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: '10px' }}>
               <button
                 type="button"
                 className="wao-secondary-button wao-display"
@@ -131,7 +149,7 @@ export default function ProfilePanel({ requests, userProfile, onUpdateProfile, o
                 Modifica profilo demo
               </button>
             </div>
-          </>
+          </div>
         ) : (
           /* Edit Mode Form */
           <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -213,159 +231,158 @@ export default function ProfilePanel({ requests, userProfile, onUpdateProfile, o
         )}
       </div>
 
-      {/* Riepilogo Richieste */}
-      <div className="profile-stats-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+      {/* 2. Riepilogo 2x2 */}
+      <div className="profile-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
         <div className="profile-stat-card">
-          <span className="stat-value" style={{ color: 'var(--text-main)' }}>{requests.length}</span>
-          <span className="stat-label">Inviate totali</span>
+          <span className="stat-value" style={{ color: 'var(--text-main)' }}>{totalCount}</span>
+          <span className="stat-label">Totali</span>
         </div>
         <div className="profile-stat-card">
-          <span className="stat-value" style={{ color: 'var(--turquoise)' }}>
-            {requests.filter(r => r.status === 'approved').length}
-          </span>
-          <span className="stat-label">Approvate</span>
-        </div>
-        <div className="profile-stat-card">
-          <span className="stat-value" style={{ color: 'var(--amber-gold)' }}>
-            {requests.filter(r => !r.status || r.status === 'pending').length}
-          </span>
+          <span className="stat-value" style={{ color: 'var(--amber-gold)' }}>{pendingCount}</span>
           <span className="stat-label">In attesa</span>
         </div>
         <div className="profile-stat-card">
-          <span className="stat-value" style={{ color: 'var(--solar-orange)' }}>
-            {requests.filter(r => r.status === 'rejected').length}
-          </span>
+          <span className="stat-value" style={{ color: 'var(--turquoise)' }}>{approvedCount}</span>
+          <span className="stat-label">Approvate</span>
+        </div>
+        <div className="profile-stat-card">
+          <span className="stat-value" style={{ color: 'var(--solar-orange)' }}>{rejectedCount}</span>
           <span className="stat-label">Rifiutate</span>
         </div>
       </div>
 
-      {/* Sezione Richieste */}
-      <div style={{ marginTop: '10px' }}>
-        <h3 className="wao-display" style={{ fontSize: '12px', color: 'var(--text-soft)', marginBottom: '10px', letterSpacing: '0.06em' }}>
-          Richiesta di viaggio
+      {/* 3. Stato viaggio attuale */}
+      <div>
+        <h3 className="wao-display" style={{ fontSize: '12px', color: 'var(--text-soft)', marginBottom: '8px', letterSpacing: '0.06em' }}>
+          Stato viaggio attuale
         </h3>
+        <div className="ride-card card-open" style={{ 
+          padding: '12px 14px', 
+          borderLeft: `3px solid ${travelStatusColor}`,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <span style={{ fontSize: '13px', color: 'var(--text-main)', fontWeight: 'bold' }}>
+            {currentTravelStatusText}
+          </span>
+          <span className={`ride-badge`} style={{ 
+            fontSize: '8.5px', 
+            padding: '2px 8px',
+            textTransform: 'uppercase',
+            fontWeight: 'bold',
+            background: travelStatusColor === 'var(--turquoise)' ? 'rgba(42, 242, 224, 0.15)' : (travelStatusColor === 'var(--amber-gold)' ? 'rgba(255, 197, 71, 0.15)' : (travelStatusColor === 'var(--solar-orange)' ? 'rgba(255, 106, 0, 0.15)' : 'rgba(255, 255, 255, 0.05)')),
+            color: travelStatusColor,
+            border: `1px solid ${travelStatusColor}`
+          }}>
+            {latestRequest ? (latestRequest.status || 'pending') : 'nessuno'}
+          </span>
+        </div>
+      </div>
 
-        {latestRequest ? (() => {
-          const isApproved = latestRequest.status === 'approved';
-          const isRejected = latestRequest.status === 'rejected';
-          
-          let borderLeftColor = 'var(--solar-orange)';
-          let badgeText = 'In attesa';
-          let badgeClass = 'badge-open';
-          if (isApproved) {
-            borderLeftColor = 'var(--turquoise)';
-            badgeText = 'Approvata';
-            badgeClass = 'badge-approved';
-          } else if (isRejected) {
-            borderLeftColor = 'var(--text-muted)';
-            badgeText = 'Non approvata';
-            badgeClass = 'badge-rejected';
-          }
-
-          return (
-            <div className="ride-card card-open" style={{ padding: '14px', borderLeft: `3px solid ${borderLeftColor}` }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span className="wao-display" style={{ fontSize: '10px', color: borderLeftColor, fontWeight: 'bold' }}>
-                  Ultima richiesta
-                </span>
-                <span className={`ride-badge ${badgeClass}`} style={{ fontSize: '8px', padding: '2px 6px' }}>
-                  {badgeText}
-                </span>
-              </div>
-
-              <div className="ride-route wao-display" style={{ fontSize: '14px', margin: '6px 0 4px 0', textTransform: 'none' }}>
-                {latestRequest.route}
-              </div>
-
-              <div style={{ fontSize: '11.5px', color: 'var(--text-soft)', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                <div>Partenza da: <strong>{latestRequest.departure}</strong></div>
-                <div>Presentato come: <strong>{latestRequest.nickname}</strong></div>
-              </div>
-
-              {/* Blocco Stato Viaggio & Compact Timeline */}
-              {(() => {
-                const isPending = !latestRequest.status || latestRequest.status === 'pending';
-                
-                let progressWidth = '0%';
-                let progressColor = 'var(--amber-gold)';
-                let activeBg = 'var(--amber-gold)';
-                let activeBorder = 'var(--amber-gold)';
-                let activeShadow = 'rgba(255, 197, 71, 0.4)';
-                let statusMessage = '';
-
-                if (isApproved) {
-                  progressWidth = '100%';
-                  progressColor = 'var(--turquoise)';
-                  activeBg = 'var(--turquoise)';
-                  activeBorder = 'var(--turquoise)';
-                  activeShadow = 'rgba(42, 242, 224, 0.4)';
-                  statusMessage = 'Crew sbloccata';
-                } else if (isRejected) {
-                  progressWidth = '66.6%';
-                  progressColor = 'rgba(255, 106, 0, 0.7)';
-                  activeBg = 'rgba(255, 106, 0, 0.7)';
-                  activeBorder = 'rgba(255, 106, 0, 0.7)';
-                  activeShadow = 'rgba(255, 106, 0, 0.3)';
-                  statusMessage = 'Questa crew non è disponibile, puoi provarne un’altra';
-                } else {
-                  progressWidth = '33.3%';
-                  progressColor = 'var(--amber-gold)';
-                  activeBg = 'var(--amber-gold)';
-                  activeBorder = 'var(--amber-gold)';
-                  activeShadow = 'rgba(255, 197, 71, 0.4)';
-                  statusMessage = 'La crew sta valutando la tua richiesta';
-                }
-
-                const compactTimelineStyle = {
-                  '--progress-color': progressColor,
-                  '--active-bg': activeBg,
-                  '--active-border': activeBorder,
-                  '--active-shadow': activeShadow,
-                };
-
-                return (
-                  <div className="profile-status-block">
-                    <div className="profile-status-title wao-display">Stato viaggio</div>
-                    
-                    <div className="compact-timeline-container" style={compactTimelineStyle}>
-                      <div className="compact-timeline">
-                        <div className="compact-timeline-progress" style={{ width: progressWidth }} />
-                        
-                        {/* Step 1 */}
-                        <div className="compact-timeline-step active" />
-
-                        {/* Step 2 */}
-                        <div className={`compact-timeline-step active ${isPending ? 'active-pulse' : ''}`} />
-
-                        {/* Step 3 */}
-                        <div className={`compact-timeline-step ${isApproved || isRejected ? 'active' : ''}`} />
-
-                        {/* Step 4 */}
-                        <div className={`compact-timeline-step ${isApproved ? 'active' : ''}`} />
-                      </div>
-                    </div>
-
-                    <div className="profile-status-message">
-                      {statusMessage}
-                    </div>
-                  </div>
-                );
-              })()}
+      {/* 4. Ultima attività */}
+      <div>
+        <h3 className="wao-display" style={{ fontSize: '12px', color: 'var(--text-soft)', marginBottom: '8px', letterSpacing: '0.06em' }}>
+          Ultima attività
+        </h3>
+        {latestRequest ? (
+          <div className="ride-card card-open" style={{ padding: '14px', borderLeft: `3px solid ${travelStatusColor}`, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className="wao-display" style={{ fontSize: '10px', color: travelStatusColor, fontWeight: 'bold' }}>
+                {latestRequest.type === 'offer' ? "Offerta Passaggio" : "Richiesta Join"}
+              </span>
+              <span style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>
+                {latestRequest.createdAt ? new Date(latestRequest.createdAt).toLocaleDateString() : ''}
+              </span>
             </div>
-          );
-        })() : (
-          <div className="placeholder-card" style={{ padding: '18px', gap: '8px' }}>
+
+            <div className="ride-route wao-display" style={{ fontSize: '14.5px', margin: '4px 0 2px 0', textTransform: 'none' }}>
+              {latestRequest.route}
+            </div>
+
+            <div style={{ fontSize: '12px', color: 'var(--text-soft)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div>Città di partenza: <strong>{latestRequest.departure}</strong></div>
+              {latestRequest.date && <div>Data: <strong>{latestRequest.date}</strong></div>}
+              <div>
+                {latestRequest.type === 'offer' ? 'Posti disponibili: ' : 'Persone: '}
+                <strong>{latestRequest.type === 'offer' ? latestRequest.spots : `${latestRequest.passengers} ${latestRequest.passengers === '1' ? 'persona' : 'persone'}`}</strong>
+              </div>
+              <div>
+                Status: <strong style={{ color: travelStatusColor }}>{latestRequest.status || 'pending'}</strong>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="placeholder-card" style={{ padding: '18px', textAlign: 'center' }}>
             <p className="placeholder-text" style={{ fontSize: '12px', margin: 0 }}>
-              Ancora nessuna richiesta. Vai in Bacheca e chiedi di unirti a una crew.
+              Nessuna attività registrata.
             </p>
-            <button
-              type="button"
-              className="wao-primary-button wao-display"
-              onClick={onNavigateToBacheca}
-              style={{ marginTop: '6px', padding: '8px 16px', fontSize: '11.5px', width: 'auto' }}
-            >
-              Vai alla Bacheca
-            </button>
+          </div>
+        )}
+      </div>
+
+      {/* 5. Mini storico recente */}
+      <div>
+        <h3 className="wao-display" style={{ fontSize: '12px', color: 'var(--text-soft)', marginBottom: '8px', letterSpacing: '0.06em' }}>
+          Mini storico recente
+        </h3>
+        {recentActivities.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {recentActivities.map((req, idx) => {
+              const isOffer = req.type === 'offer';
+              const status = req.status || 'pending';
+
+              let statusBadgeColor = 'var(--amber-gold)';
+              let statusBadgeBg = 'rgba(255, 197, 71, 0.1)';
+              if (status === 'approved') {
+                statusBadgeColor = 'var(--turquoise)';
+                statusBadgeBg = 'rgba(42, 242, 224, 0.1)';
+              } else if (status === 'rejected') {
+                statusBadgeColor = 'var(--solar-orange)';
+                statusBadgeBg = 'rgba(255, 106, 0, 0.1)';
+              }
+
+              return (
+                <div 
+                  key={getEntryKey(req, idx)} 
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    background: 'rgba(14, 13, 38, 0.4)',
+                    border: '1px solid rgba(255, 255, 255, 0.05)',
+                    borderRadius: '8px',
+                    padding: '10px 12px',
+                    fontSize: '12px'
+                  }}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                      {isOffer ? "🚗 Offerta Passaggio" : "👥 Richiesta Join"}
+                    </span>
+                    <strong style={{ color: 'var(--text-main)' }}>{req.route}</strong>
+                  </div>
+                  <span style={{
+                    fontSize: '9px',
+                    fontWeight: 'bold',
+                    textTransform: 'uppercase',
+                    color: statusBadgeColor,
+                    background: statusBadgeBg,
+                    border: `1px solid ${statusBadgeColor}`,
+                    padding: '2px 6px',
+                    borderRadius: '4px'
+                  }}>
+                    {status}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="placeholder-card" style={{ padding: '18px', textAlign: 'center' }}>
+            <p className="placeholder-text" style={{ fontSize: '11px', margin: 0 }}>
+              Nessuna attività nello storico.
+            </p>
           </div>
         )}
       </div>

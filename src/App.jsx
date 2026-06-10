@@ -4,6 +4,7 @@ import SolarHeroBackground from './components/SolarHeroBackground';
 import BottomNav from './components/BottomNav';
 import RoadBoard from './components/RoadBoard';
 import JoinRequestModal from './components/JoinRequestModal';
+import OfferRideModal from './components/OfferRideModal';
 import MessagesPanel from './components/MessagesPanel';
 import ProfilePanel from './components/ProfilePanel';
 import AdminPanel from './components/AdminPanel';
@@ -20,6 +21,7 @@ const DEFAULT_PROFILE = {
 function App() {
   const [currentTab, setCurrentTab] = useState('casa');
   const [selectedRide, setSelectedRide] = useState(null);
+  const [showOfferModal, setShowOfferModal] = useState(false);
   const [requests, setRequests] = useState([]);
 
   const [userProfile, setUserProfile] = useState(() => {
@@ -122,7 +124,7 @@ function App() {
                   <button
                     type="button"
                     className="wao-secondary-button wao-display"
-                    onClick={() => setCurrentTab('bacheca')}
+                    onClick={() => setShowOfferModal(true)}
                   >
                     Offri un posto
                   </button>
@@ -144,7 +146,10 @@ function App() {
         )}
 
         {currentTab === 'bacheca' && (
-          <RoadBoard onJoinRide={setSelectedRide} />
+          <RoadBoard 
+            onJoinRide={setSelectedRide} 
+            onOfferRide={() => setShowOfferModal(true)} 
+          />
         )}
 
         {currentTab === 'messaggi' && (
@@ -173,14 +178,18 @@ function App() {
           <div className="app-content">
             <AdminPanel
               requests={requests}
-              onUpdateStatus={(index, newStatus) => {
+              onUpdateStatus={(idOrIndex, newStatus) => {
                 setRequests(prev => {
-                  const updated = [...prev];
-                  updated[index] = {
-                    ...updated[index],
-                    status: newStatus
-                  };
-                  return updated;
+                  const hasId = prev.some(r => r.id === idOrIndex);
+                  if (hasId) {
+                    return prev.map(r => r.id === idOrIndex ? { ...r, status: newStatus } : r);
+                  }
+                  if (typeof idOrIndex === 'number' && idOrIndex >= 0 && idOrIndex < prev.length) {
+                    const updated = [...prev];
+                    updated[idOrIndex] = { ...updated[idOrIndex], status: newStatus };
+                    return updated;
+                  }
+                  return prev;
                 });
               }}
               onClose={() => setCurrentTab('messaggi')}
@@ -198,10 +207,38 @@ function App() {
             userProfile={userProfile}
             onClose={() => setSelectedRide(null)}
             onSubmitRequest={(newReq) => {
-              setRequests(prev => [newReq, ...prev]);
+              const reqWithType = { 
+                ...newReq, 
+                type: 'join',
+                id: newReq.id || `join-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                createdAt: newReq.createdAt || new Date().toISOString()
+              };
+              setRequests(prev => [reqWithType, ...prev]);
               handleUpdateProfile({
                 nickname: newReq.nickname,
                 departureCity: newReq.departure
+              });
+            }}
+            onGoToMessages={() => setCurrentTab('messaggi')}
+          />
+        )}
+
+        {/* Modal di offerta passaggio */}
+        {showOfferModal && (
+          <OfferRideModal
+            userProfile={userProfile}
+            onClose={() => setShowOfferModal(false)}
+            onSubmitOffer={(newOffer) => {
+              const offerWithId = {
+                ...newOffer,
+                id: newOffer.id || `offer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                createdAt: newOffer.createdAt || new Date().toISOString()
+              };
+              setRequests(prev => [offerWithId, ...prev]);
+              handleUpdateProfile({
+                nickname: newOffer.nickname,
+                departureCity: newOffer.departure,
+                vibe: newOffer.vibe
               });
             }}
             onGoToMessages={() => setCurrentTab('messaggi')}
