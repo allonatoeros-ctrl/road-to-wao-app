@@ -60,7 +60,7 @@ export default function MessagesPanel({ requests, onFindRide, onOpenControlRoom 
             }
 
             return (
-              <div key={index} className={`ride-card ${cardClass}`}>
+              <div key={req.id || `${req.route}-${req.nickname}-${req.departure}-${req.message ? req.message.substring(0, 15) : ''}`} className={`ride-card ${cardClass}`}>
                 {isPending && <div className="ride-card-glow-gold" aria-hidden="true"></div>}
                 {isApproved && <div className="ride-card-glow-approved" aria-hidden="true"></div>}
                 

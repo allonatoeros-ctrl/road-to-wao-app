@@ -51,7 +51,7 @@ export default function AdminPanel({ requests, onUpdateStatus, onClose }) {
               requests.map((req, index) => {
                 if (req.status && req.status !== 'pending') return null;
                 return (
-                  <div key={index} className="ride-card card-pending-gold">
+                  <div key={req.id || `${req.route}-${req.nickname}-${req.departure}-${req.message ? req.message.substring(0, 15) : ''}`} className="ride-card card-pending-gold">
                     <div className="ride-card-glow-gold" aria-hidden="true"></div>
                     
                     <div className="ride-card-header">
@@ -127,7 +127,7 @@ export default function AdminPanel({ requests, onUpdateStatus, onClose }) {
                 const isApproved = req.status === 'approved';
                 return (
                   <div 
-                    key={index} 
+                    key={req.id || `${req.route}-${req.nickname}-${req.departure}-${req.message ? req.message.substring(0, 15) : ''}`} 
                     className={`ride-card ${isApproved ? 'card-approved' : 'card-rejected'}`}
                     style={{ opacity: 0.8 }}
                   >

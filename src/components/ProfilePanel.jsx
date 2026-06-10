@@ -230,23 +230,29 @@ export default function ProfilePanel({ requests, onNavigateToBacheca, onOpenCont
         )}
       </div>
 
-      {/* Mini Stats */}
-      <div className="profile-stats-grid">
+      {/* Riepilogo Richieste */}
+      <div className="profile-stats-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
         <div className="profile-stat-card">
-          <span className="stat-value">{requests.length}</span>
-          <span className="stat-label">Richieste inviate</span>
+          <span className="stat-value" style={{ color: 'var(--text-main)' }}>{requests.length}</span>
+          <span className="stat-label">Inviate totali</span>
         </div>
         <div className="profile-stat-card">
-          <span className="stat-value" style={{ fontSize: '11px', color: profileStatusColor }}>
-            {profileStatusText}
+          <span className="stat-value" style={{ color: 'var(--turquoise)' }}>
+            {requests.filter(r => r.status === 'approved').length}
           </span>
-          <span className="stat-label">Stato</span>
+          <span className="stat-label">Approvate</span>
         </div>
         <div className="profile-stat-card">
-          <span className="stat-value" style={{ fontSize: '11px', color: crewStatusColor }}>
-            {crewStatusText}
+          <span className="stat-value" style={{ color: 'var(--amber-gold)' }}>
+            {requests.filter(r => !r.status || r.status === 'pending').length}
           </span>
-          <span className="stat-label">Crew</span>
+          <span className="stat-label">In attesa</span>
+        </div>
+        <div className="profile-stat-card">
+          <span className="stat-value" style={{ color: 'var(--solar-orange)' }}>
+            {requests.filter(r => r.status === 'rejected').length}
+          </span>
+          <span className="stat-label">Rifiutate</span>
         </div>
       </div>
 
