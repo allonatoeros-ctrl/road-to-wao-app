@@ -3,10 +3,12 @@ import CosmicAppShell from './components/CosmicAppShell';
 import SolarHeroBackground from './components/SolarHeroBackground';
 import BottomNav from './components/BottomNav';
 import RoadBoard from './components/RoadBoard';
+import JoinRequestModal from './components/JoinRequestModal';
 import './road-to-wao.css';
 
 function App() {
   const [currentTab, setCurrentTab] = useState('casa');
+  const [selectedRide, setSelectedRide] = useState(null);
 
   return (
     <CosmicAppShell>
@@ -101,7 +103,7 @@ function App() {
         )}
 
         {currentTab === 'bacheca' && (
-          <RoadBoard />
+          <RoadBoard onJoinRide={setSelectedRide} />
         )}
 
         {(currentTab === 'messaggi' || currentTab === 'profilo') && (
@@ -143,6 +145,14 @@ function App() {
 
         {/* Barra di Navigazione Fissa in Basso */}
         <BottomNav activeTab={currentTab} setActiveTab={setCurrentTab} />
+
+        {/* Modal di richiesta unione */}
+        {selectedRide && (
+          <JoinRequestModal
+            ride={selectedRide}
+            onClose={() => setSelectedRide(null)}
+          />
+        )}
       </div>
     </CosmicAppShell>
   );

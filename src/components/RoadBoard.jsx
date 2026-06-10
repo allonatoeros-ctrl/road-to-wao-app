@@ -1,4 +1,4 @@
-export default function RoadBoard() {
+export default function RoadBoard({ onJoinRide }) {
   const rides = [
     {
       id: 1,
@@ -111,7 +111,7 @@ export default function RoadBoard() {
               <button 
                 type="button" 
                 className="wao-primary-button wao-display"
-                onClick={() => console.log(`Unione richiesta per viaggio ${ride.id} (mock)`)}
+                onClick={() => onJoinRide && onJoinRide(ride)}
               >
                 Chiedi di unirti
               </button>
