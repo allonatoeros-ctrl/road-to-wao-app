@@ -5,6 +5,7 @@ import BottomNav from './components/BottomNav';
 import RoadBoard from './components/RoadBoard';
 import JoinRequestModal from './components/JoinRequestModal';
 import MessagesPanel from './components/MessagesPanel';
+import ProfilePanel from './components/ProfilePanel';
 import './road-to-wao.css';
 
 function App() {
@@ -118,31 +119,11 @@ function App() {
         )}
 
         {currentTab === 'profilo' && (
-          <div className="app-content placeholder-content">
-            <header className="app-header">
-              <h1 className="app-brand wao-display">Road to WAO</h1>
-              <span className="app-badge-demo">Sezione Demo</span>
-            </header>
-            <div className="placeholder-card">
-              <div className="placeholder-icon">
-                <svg viewBox="0 0 24 24" width="48" height="48" stroke="var(--magenta-purple)" strokeWidth="1.5" fill="none">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
-                </svg>
-              </div>
-              <h2 className="placeholder-title wao-display">Profilo Utente</h2>
-              <p className="placeholder-text">
-                Questa sezione è un mockup demo. Nella versione finale qui potrai gestire le tue preferenze di viaggio.
-              </p>
-              <button 
-                type="button" 
-                className="wao-primary-button wao-display"
-                onClick={() => setCurrentTab('casa')}
-                style={{ marginTop: '16px' }}
-              >
-                Torna alla Home
-              </button>
-            </div>
+          <div className="app-content">
+            <ProfilePanel 
+              requests={requests} 
+              onNavigateToBacheca={() => setCurrentTab('bacheca')} 
+            />
           </div>
         )}
 

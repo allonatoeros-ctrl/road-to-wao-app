@@ -1,0 +1,265 @@
+import { useState, useEffect } from 'react';
+
+export default function ProfilePanel({ requests, onNavigateToBacheca }) {
+  // Local profile state, initialized from localStorage or defaults
+  const [profile, setProfile] = useState(() => {
+    const saved = localStorage.getItem('wao_profile');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // ignore and fallback
+      }
+    }
+    return {
+      nickname: 'Cosmic Rider',
+      badge: 'Crew seeker',
+      departureCity: 'Milano',
+      vibe: 'music-first / tranquillo',
+      status: 'Sto cercando passaggio'
+    };
+  });
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ ...profile });
+
+  useEffect(() => {
+    localStorage.setItem('wao_profile', JSON.stringify(profile));
+  }, [profile]);
+
+  const handleEditChange = (e) => {
+    const { name, value } = e.target;
+    setEditForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSave = (e) => {
+    e.preventDefault();
+    if (!editForm.nickname.trim()) return;
+    setProfile(editForm);
+    setIsEditing(false);
+  };
+
+  const handleCancel = () => {
+    setEditForm({ ...profile });
+    setIsEditing(false);
+  };
+
+  const latestRequest = requests && requests[0];
+  const pendingRequestsCount = requests ? requests.filter(r => r.status === 'pending').length : 0;
+
+  return (
+    <div className="profile-panel-content" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
+      {/* Header */}
+      <header className="board-header">
+        <h1 className="board-title wao-display">Profilo viaggio</h1>
+        <p className="board-subtitle">La tua identità leggera per trovare la crew giusta.</p>
+      </header>
+
+      {/* Card principale */}
+      <div className="ride-card card-pending-gold" style={{ position: 'relative' }}>
+        <div className="ride-card-glow-gold" aria-hidden="true"></div>
+
+        {!isEditing ? (
+          <>
+            {/* View Mode */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '14px' }}>
+              {/* Avatar Icon / Orb */}
+              <div className="profile-avatar-orb">
+                <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+              </div>
+
+              <div>
+                <h2 className="wao-display" style={{ fontSize: '18px', margin: 0, color: 'var(--text-main)', letterSpacing: '0.05em' }}>
+                  {profile.nickname}
+                </h2>
+                <span className="ride-badge badge-pending-gold" style={{ marginTop: '4px', display: 'inline-block', fontSize: '9px' }}>
+                  {profile.badge}
+                </span>
+              </div>
+            </div>
+
+            {/* Dettagli Profilo */}
+            <div className="ride-details" style={{ marginTop: '8px', gap: '10px' }}>
+              <div className="ride-detail-item">
+                <svg viewBox="0 0 24 24" className="detail-icon" stroke="currentColor" strokeWidth="2" fill="none">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                  <circle cx="12" cy="10" r="3" />
+                </svg>
+                <span className="detail-text">Partenza: <strong style={{ color: 'var(--text-main)' }}>{profile.departureCity}</strong></span>
+              </div>
+
+              <div className="ride-detail-item">
+                <svg viewBox="0 0 24 24" className="detail-icon" stroke="currentColor" strokeWidth="2" fill="none">
+                  <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                </svg>
+                <span className="detail-text">Vibe viaggio: <strong style={{ color: 'var(--text-main)' }}>{profile.vibe}</strong></span>
+              </div>
+
+              <div className="ride-detail-item">
+                <svg viewBox="0 0 24 24" className="detail-icon" stroke="currentColor" strokeWidth="2" fill="none">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                <span className="detail-text">Stato festival: <strong style={{ color: 'var(--text-main)' }}>{profile.status}</strong></span>
+              </div>
+            </div>
+
+            {/* Modifica CTA */}
+            <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                className="wao-secondary-button wao-display"
+                onClick={() => setIsEditing(true)}
+                style={{ padding: '6px 12px', fontSize: '10.5px', width: 'auto' }}
+              >
+                Modifica profilo demo
+              </button>
+            </div>
+          </>
+        ) : (
+          /* Edit Mode Form */
+          <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '8px' }}>
+              <h3 className="wao-display" style={{ fontSize: '13px', margin: 0, color: 'var(--amber-gold)' }}>Modifica Profilo Demo</h3>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="profile-nickname" style={{ fontSize: '9px' }}>Nickname</label>
+              <input
+                type="text"
+                id="profile-nickname"
+                name="nickname"
+                value={editForm.nickname}
+                onChange={handleEditChange}
+                className="form-input"
+                style={{ padding: '8px 10px', fontSize: '12px' }}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="profile-departureCity" style={{ fontSize: '9px' }}>Città di partenza</label>
+              <input
+                type="text"
+                id="profile-departureCity"
+                name="departureCity"
+                value={editForm.departureCity}
+                onChange={handleEditChange}
+                className="form-input"
+                style={{ padding: '8px 10px', fontSize: '12px' }}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="profile-vibe" style={{ fontSize: '9px' }}>Vibe viaggio</label>
+              <input
+                type="text"
+                id="profile-vibe"
+                name="vibe"
+                value={editForm.vibe}
+                onChange={handleEditChange}
+                className="form-input"
+                style={{ padding: '8px 10px', fontSize: '12px' }}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="profile-status" style={{ fontSize: '9px' }}>Stato festival</label>
+              <input
+                type="text"
+                id="profile-status"
+                name="status"
+                value={editForm.status}
+                onChange={handleEditChange}
+                className="form-input"
+                style={{ padding: '8px 10px', fontSize: '12px' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+              <button
+                type="submit"
+                className="wao-primary-button wao-display"
+                style={{ padding: '8px 14px', fontSize: '11px', flex: 1 }}
+              >
+                Salva
+              </button>
+              <button
+                type="button"
+                className="wao-cancel-button wao-display"
+                onClick={handleCancel}
+                style={{ padding: '8px 14px', fontSize: '11px', flex: 1 }}
+              >
+                Annulla
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+
+      {/* Mini Stats */}
+      <div className="profile-stats-grid">
+        <div className="profile-stat-card">
+          <span className="stat-value">{pendingRequestsCount}</span>
+          <span className="stat-label">Richieste inviate</span>
+        </div>
+        <div className="profile-stat-card">
+          <span className="stat-value" style={{ fontSize: '11px', color: pendingRequestsCount > 0 ? 'var(--amber-gold)' : 'var(--text-soft)' }}>
+            {pendingRequestsCount > 0 ? 'In attesa' : 'Nessuna'}
+          </span>
+          <span className="stat-label">Stato</span>
+        </div>
+        <div className="profile-stat-card">
+          <span className="stat-value" style={{ fontSize: '10px' }}>Non conf.</span>
+          <span className="stat-label">Crew</span>
+        </div>
+      </div>
+
+      {/* Sezione Richieste */}
+      <div style={{ marginTop: '10px' }}>
+        <h3 className="wao-display" style={{ fontSize: '12px', color: 'var(--text-soft)', marginBottom: '10px', letterSpacing: '0.06em' }}>
+          Richiesta di viaggio
+        </h3>
+
+        {latestRequest ? (
+          <div className="ride-card card-open" style={{ padding: '14px', borderLeft: '3px solid var(--solar-orange)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className="wao-display" style={{ fontSize: '10px', color: 'var(--solar-orange)', fontWeight: 'bold' }}>
+                Ultima richiesta
+              </span>
+              <span className="ride-badge badge-open" style={{ fontSize: '8px', padding: '2px 6px' }}>
+                In attesa
+              </span>
+            </div>
+
+            <div className="ride-route wao-display" style={{ fontSize: '14px', margin: '6px 0 4px 0', textTransform: 'none' }}>
+              {latestRequest.route}
+            </div>
+
+            <div style={{ fontSize: '11.5px', color: 'var(--text-soft)', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+              <div>Partenza da: <strong>{latestRequest.departure}</strong></div>
+              <div>Presentato come: <strong>{latestRequest.nickname}</strong></div>
+            </div>
+          </div>
+        ) : (
+          <div className="placeholder-card" style={{ padding: '18px', gap: '8px' }}>
+            <p className="placeholder-text" style={{ fontSize: '12px', margin: 0 }}>
+              Ancora nessuna richiesta. Vai in Bacheca e chiedi di unirti a una crew.
+            </p>
+            <button
+              type="button"
+              className="wao-primary-button wao-display"
+              onClick={onNavigateToBacheca}
+              style={{ marginTop: '6px', padding: '8px 16px', fontSize: '11.5px', width: 'auto' }}
+            >
+              Vai alla Bacheca
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

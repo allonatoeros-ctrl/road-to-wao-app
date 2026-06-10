@@ -1486,3 +1486,54 @@
   color: var(--amber-gold);
   border: 1px solid rgba(255, 197, 71, 0.22);
 }
+
+/* --- PROFILO VIAGGIO STYLES --- */
+.profile-avatar-orb {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--magenta-purple), var(--solar-orange));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-main);
+  box-shadow: 0 0 12px rgba(255, 106, 0, 0.35);
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.profile-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.profile-stat-card {
+  background: rgba(14, 13, 38, 0.5);
+  border: 1px solid rgba(255, 197, 71, 0.08);
+  border-radius: 12px;
+  padding: 10px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  backdrop-filter: blur(10px);
+  text-align: center;
+}
+
+.stat-value {
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--text-main);
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.1);
+}
+
+.stat-label {
+  font-size: 8.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
