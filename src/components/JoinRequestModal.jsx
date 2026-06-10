@@ -1,9 +1,21 @@
 import { useState } from 'react';
 
-export default function JoinRequestModal({ ride, userProfile, onClose, onSubmitRequest, onGoToMessages }) {
+export default function JoinRequestModal({ 
+  ride: propRide, 
+  selectedRide, 
+  mode = 'ride', 
+  userProfile, 
+  onClose, 
+  onSubmitRequest, 
+  onSubmit, 
+  onGoToMessages 
+}) {
+  const ride = selectedRide || propRide;
+  const submitHandler = onSubmit || onSubmitRequest;
+
   const [form, setForm] = useState({
     nickname: userProfile?.nickname || '',
-    departureCity: userProfile?.departureCity || '',
+    departureCity: (mode === 'ride' && ride) ? (ride.departureCity || ride.from || '') : (userProfile?.departureCity || ''),
     passengers: '1',
     tripType: 'solo andata',
     travelTime: 'mattina',
@@ -45,24 +57,27 @@ export default function JoinRequestModal({ ride, userProfile, onClose, onSubmitR
     // Simulate API call and transition
     setIsSuccess(true);
 
-    if (onSubmitRequest) {
-      onSubmitRequest({
-        route: `${ride.from} → ${ride.to}`,
-        departure: form.departureCity,
+    if (submitHandler) {
+      submitHandler({
         nickname: form.nickname,
-        passengers: form.passengers,
+        departureCity: form.departureCity,
+        departure: form.departureCity,
         tripType: form.tripType,
         travelTime: form.travelTime,
+        peopleCount: form.passengers,
+        passengers: form.passengers,
         luggageNeed: form.luggageNeed,
         luggageDetails: form.luggageDetails,
         nearbyFlexible: form.nearbyFlexible,
         message: form.message,
-        status: 'pending'
+        isOfAge: form.isOfAge,
+        route: mode === 'ride' && ride ? `${ride.from || ride.departureCity} → ${ride.to || ride.destination}` : `${form.departureCity} → WAO (Generale)`,
+        status: mode === 'general' ? 'active' : 'pending'
       });
     }
   };
 
-  if (!ride) return null;
+  if (mode === 'ride' && !ride) return null;
 
   return (
     <div className="wao-modal-overlay" onClick={onClose}>
@@ -75,38 +90,53 @@ export default function JoinRequestModal({ ride, userProfile, onClose, onSubmitR
           <form onSubmit={handleSubmit} className="wao-modal-form">
             {/* Header */}
             <div className="wao-modal-header">
-              <h2 className="wao-modal-title wao-display">Unisciti al viaggio</h2>
+              <h2 className="wao-modal-title wao-display">
+                {mode === 'general' ? 'Lascia una richiesta generale' : 'Chiedi di unirti a questo viaggio'}
+              </h2>
               <p className="wao-modal-subtitle">
-                Lascia una richiesta alla crew. Se approvata, sbloccherai il contatto privato.
+                {mode === 'general' 
+                  ? 'Non hai trovato un viaggio adatto? Lascia i tuoi dati: se nasce una crew compatibile ti avvisiamo.' 
+                  : 'Lascia una richiesta alla crew. Se approvata, sbloccherai il contatto privato.'}
               </p>
             </div>
 
             {/* Riepilogo Viaggio Card */}
-            <div className="wao-modal-summary-card">
-              <div className="summary-route wao-display">
-                <span>{ride.from}</span>
-                <span className="summary-arrow">→</span>
-                <span className="summary-dest">{ride.to}</span>
-              </div>
-              <div className="summary-meta-grid">
-                <div className="summary-meta-item">
-                  <svg viewBox="0 0 24 24" className="summary-icon" stroke="currentColor" strokeWidth="2" fill="none">
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                    <line x1="16" y1="2" x2="16" y2="6" />
-                    <line x1="8" y1="2" x2="8" y2="6" />
-                    <line x1="3" y1="10" x2="21" y2="10" />
-                  </svg>
-                  <span>{ride.departure}</span>
+            {mode === 'ride' && ride && (
+              <div className="wao-modal-summary-card">
+                <div className="summary-route wao-display">
+                  <span>{ride.from || ride.departureCity}</span>
+                  <span className="summary-arrow">→</span>
+                  <span className="summary-dest">{ride.to || ride.destination}</span>
                 </div>
-                <div className="summary-meta-item">
-                  <svg viewBox="0 0 24 24" className="summary-icon" stroke="currentColor" strokeWidth="2" fill="none">
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                  </svg>
-                  <span>{ride.spots}</span>
+                <div className="summary-meta-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginTop: '8px' }}>
+                  <div className="summary-meta-item" style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--text-soft)' }}>
+                    <svg viewBox="0 0 24 24" className="summary-icon" stroke="currentColor" strokeWidth="2" fill="none" width="14" height="14">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                      <line x1="16" y1="2" x2="16" y2="6" />
+                      <line x1="8" y1="2" x2="8" y2="6" />
+                      <line x1="3" y1="10" x2="21" y2="10" />
+                    </svg>
+                    <span>{ride.departureDate || ride.departure} · {ride.travelTime}</span>
+                  </div>
+                  <div className="summary-meta-item" style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--text-soft)' }}>
+                    <svg viewBox="0 0 24 24" className="summary-icon" stroke="currentColor" strokeWidth="2" fill="none" width="14" height="14">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                    </svg>
+                    <span>{ride.spots || (ride.seatsAvailable !== undefined ? `${ride.seatsAvailable} posti liberi` : '')}</span>
+                  </div>
+                  <div className="summary-meta-item" style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--text-soft)', gridColumn: 'span 2' }}>
+                    <svg viewBox="0 0 24 24" className="summary-icon" stroke="currentColor" strokeWidth="2" fill="none" width="14" height="14">
+                      <circle cx="12" cy="12" r="10" />
+                      <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+                      <line x1="9" y1="9" x2="9.01" y2="9" />
+                      <line x1="15" y1="9" x2="15.01" y2="9" />
+                    </svg>
+                    <span>Driver: {ride.driver}</span>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Campi Form */}
             <div className="wao-modal-body" style={{ maxHeight: '55dvh', overflowY: 'auto', paddingRight: '4px' }}>
@@ -306,9 +336,11 @@ export default function JoinRequestModal({ ride, userProfile, onClose, onSubmitR
 
             <div className="success-content">
               <h2 className="success-title wao-display">Richiesta inviata</h2>
-              <p className="success-subtitle">In attesa approvazione della crew</p>
+              <p className="success-subtitle">
+                {mode === 'general' ? 'Ti contatteremo se si libera una crew compatibile' : 'In attesa approvazione della crew'}
+              </p>
               <p className="success-disclaimer">
-                Nessun contatto viene mostrato prima dell’approvazione.
+                {mode === 'general' ? 'I tuoi dati sono stati salvati correttamente.' : 'Nessun contatto viene mostrato prima dell’approvazione.'}
               </p>
             </div>
 

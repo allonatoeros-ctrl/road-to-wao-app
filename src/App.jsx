@@ -71,7 +71,10 @@ const INITIAL_RIDES = [
 
 function App() {
   const [currentTab, setCurrentTab] = useState('casa');
-  const [selectedRide, setSelectedRide] = useState(null);
+  const [joinRequests, setJoinRequests] = useState([]);
+  const [generalRequests, setGeneralRequests] = useState([]);
+  const [selectedRideForJoin, setSelectedRideForJoin] = useState(null);
+  const [joinModalMode, setJoinModalMode] = useState(null);
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [requests, setRequests] = useState([]);
   const [rides, setRides] = useState(INITIAL_RIDES);
@@ -102,6 +105,121 @@ function App() {
       const next = { ...prev, ...updated };
       localStorage.setItem('wao_profile', JSON.stringify(next));
       return next;
+    });
+  };
+
+  const openJoinForRide = (ride) => {
+    setSelectedRideForJoin(ride);
+    setJoinModalMode('ride');
+  };
+
+  const openGeneralRequest = () => {
+    setSelectedRideForJoin(null);
+    setJoinModalMode('general');
+  };
+
+  const closeJoinModal = () => {
+    setSelectedRideForJoin(null);
+    setJoinModalMode(null);
+  };
+
+  const handleSubmitJoinRequest = (formData) => {
+    const newId = `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const createdAt = new Date().toISOString();
+
+    if (joinModalMode === 'ride') {
+      const newJoin = {
+        id: newId,
+        rideId: selectedRideForJoin.id,
+        rideSummary: `${selectedRideForJoin.departureCity}/${selectedRideForJoin.departureDate}/${selectedRideForJoin.travelTime}/${selectedRideForJoin.driver}`,
+        type: 'join',
+        status: 'pending',
+        archived: false,
+        nickname: formData.nickname,
+        departureCity: formData.departureCity,
+        tripType: formData.tripType,
+        travelTime: formData.travelTime,
+        peopleCount: formData.peopleCount || formData.passengers,
+        passengers: formData.passengers || formData.peopleCount,
+        luggageNeed: formData.luggageNeed,
+        luggageDetails: formData.luggageDetails,
+        nearbyFlexible: formData.nearbyFlexible,
+        message: formData.message,
+        isOfAge: formData.isOfAge,
+        createdAt
+      };
+      setJoinRequests(prev => [newJoin, ...prev]);
+
+      const legacyReq = {
+        id: newId,
+        type: 'join',
+        status: 'pending',
+        archived: false,
+        route: `${selectedRideForJoin.departureCity || selectedRideForJoin.from} → ${selectedRideForJoin.destination || selectedRideForJoin.to || 'WAO'}`,
+        departure: formData.departureCity,
+        departureCity: formData.departureCity,
+        nickname: formData.nickname,
+        passengers: formData.passengers || formData.peopleCount,
+        peopleCount: formData.peopleCount || formData.passengers,
+        tripType: formData.tripType,
+        travelTime: formData.travelTime,
+        luggageNeed: formData.luggageNeed,
+        luggageDetails: formData.luggageDetails,
+        nearbyFlexible: formData.nearbyFlexible,
+        message: formData.message,
+        isOfAge: formData.isOfAge,
+        rideId: selectedRideForJoin.id,
+        createdAt
+      };
+      setRequests(prev => [legacyReq, ...prev]);
+
+    } else if (joinModalMode === 'general') {
+      const newGeneral = {
+        id: newId,
+        type: 'general',
+        status: 'active',
+        archived: false,
+        nickname: formData.nickname,
+        departureCity: formData.departureCity,
+        tripType: formData.tripType,
+        travelTime: formData.travelTime,
+        peopleCount: formData.peopleCount || formData.passengers,
+        passengers: formData.passengers || formData.peopleCount,
+        luggageNeed: formData.luggageNeed,
+        luggageDetails: formData.luggageDetails,
+        nearbyFlexible: formData.nearbyFlexible,
+        message: formData.message,
+        isOfAge: formData.isOfAge,
+        createdAt
+      };
+      setGeneralRequests(prev => [newGeneral, ...prev]);
+
+      const legacyReq = {
+        id: newId,
+        type: 'join',
+        status: 'pending',
+        archived: false,
+        route: `${formData.departureCity} → WAO (Generale)`,
+        departure: formData.departureCity,
+        departureCity: formData.departureCity,
+        nickname: formData.nickname,
+        passengers: formData.passengers || formData.peopleCount,
+        peopleCount: formData.peopleCount || formData.passengers,
+        tripType: formData.tripType,
+        travelTime: formData.travelTime,
+        luggageNeed: formData.luggageNeed,
+        luggageDetails: formData.luggageDetails,
+        nearbyFlexible: formData.nearbyFlexible,
+        message: formData.message,
+        isOfAge: formData.isOfAge,
+        createdAt
+      };
+      setRequests(prev => [legacyReq, ...prev]);
+    }
+
+    handleUpdateProfile({
+      nickname: formData.nickname,
+      departureCity: formData.departureCity
     });
   };
 
@@ -200,7 +318,8 @@ function App() {
         {currentTab === 'bacheca' && (
           <RoadBoard 
             rides={rides}
-            onJoinRide={setSelectedRide} 
+            onJoinRide={openJoinForRide} 
+            onGeneralRequest={openGeneralRequest}
             onOfferRide={() => setShowOfferModal(true)} 
           />
         )}
@@ -257,24 +376,13 @@ function App() {
         <BottomNav activeTab={currentTab} setActiveTab={setCurrentTab} />
 
         {/* Modal di richiesta unione */}
-        {selectedRide && (
+        {joinModalMode && (
           <JoinRequestModal
-            ride={selectedRide}
+            selectedRide={selectedRideForJoin}
+            mode={joinModalMode}
             userProfile={userProfile}
-            onClose={() => setSelectedRide(null)}
-            onSubmitRequest={(newReq) => {
-              const reqWithType = { 
-                ...newReq, 
-                type: 'join',
-                id: newReq.id || `join-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                createdAt: newReq.createdAt || new Date().toISOString()
-              };
-              setRequests(prev => [reqWithType, ...prev]);
-              handleUpdateProfile({
-                nickname: newReq.nickname,
-                departureCity: newReq.departure
-              });
-            }}
+            onClose={closeJoinModal}
+            onSubmit={handleSubmitJoinRequest}
             onGoToMessages={() => setCurrentTab('messaggi')}
           />
         )}

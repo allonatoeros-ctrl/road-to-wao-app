@@ -1,4 +1,4 @@
-export default function RoadBoard({ rides, onJoinRide, onOfferRide }) {
+export default function RoadBoard({ rides, onJoinRide, onGeneralRequest, onOfferRide }) {
   return (
     <div className="board-content">
       {/* Header della bacheca */}
@@ -85,13 +85,7 @@ export default function RoadBoard({ rides, onJoinRide, onOfferRide }) {
                 <button 
                   type="button" 
                   className="wao-primary-button wao-display"
-                  onClick={() => !isFull && onJoinRide && onJoinRide({
-                    ...ride, 
-                    from: ride.departureCity, 
-                    to: ride.destination, 
-                    spots: spotsText,
-                    departure: ride.departureDate
-                  })}
+                  onClick={() => !isFull && onJoinRide && onJoinRide(ride)}
                   disabled={isFull}
                   style={isFull ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
                 >
@@ -102,6 +96,36 @@ export default function RoadBoard({ rides, onJoinRide, onOfferRide }) {
           );
         })}
       </section>
+
+      {/* CTA per Richiesta Generale */}
+      <div 
+        className="ride-card general-request-cta" 
+        style={{ 
+          marginTop: '20px', 
+          border: '1px dashed rgba(255, 197, 71, 0.3)', 
+          textAlign: 'center', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          alignItems: 'center', 
+          gap: '8px',
+          background: 'rgba(14, 13, 38, 0.45)'
+        }}
+      >
+        <div className="wao-display" style={{ fontSize: '15px', color: 'var(--amber-gold)', fontWeight: 'bold', letterSpacing: '0.04em' }}>
+          Non trovi un passaggio adatto?
+        </div>
+        <p style={{ fontSize: '12.5px', color: 'var(--text-soft)', margin: '0 0 6px 0', lineHeight: '1.4', maxWidth: '85%' }}>
+          Lascia una richiesta generale: se si libera una crew compatibile ti avvisiamo.
+        </p>
+        <button 
+          type="button" 
+          className="wao-primary-button wao-display"
+          onClick={() => onGeneralRequest && onGeneralRequest()}
+          style={{ width: 'auto', padding: '8px 18px', fontSize: '12px' }}
+        >
+          Lascia richiesta generale
+        </button>
+      </div>
     </div>
   );
 }
