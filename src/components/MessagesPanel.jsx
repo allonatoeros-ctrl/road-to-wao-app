@@ -89,41 +89,128 @@ export default function MessagesPanel({ requests, onFindRide, onOpenControlRoom,
               <circle cx="12" cy="7" r="4" />
             </svg>
             <span className="detail-text">
-              Tu come: <strong>{req.nickname}</strong> {isOffer ? `(${req.spots})` : `(${req.passengers} ${req.passengers === '1' ? 'persona' : 'persone'})`}
+              Tu come: <strong>{req.nickname}</strong>
             </span>
           </div>
 
-          {isOffer && req.stops && (
-            <div className="ride-detail-item">
-              <svg viewBox="0 0 24 24" className="detail-icon" stroke="currentColor" strokeWidth="2" fill="none">
-                <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
-                <line x1="9" y1="3" x2="9" y2="18" />
-                <line x1="15" y1="6" x2="15" y2="21" />
-              </svg>
-              <span className="detail-text">Tappe: <strong>{req.stops}</strong></span>
-            </div>
-          )}
+          {!isOffer ? (
+            /* --- JOIN DETAILS --- */
+            <>
+              <div className="ride-detail-item">
+                <svg viewBox="0 0 24 24" className="detail-icon" stroke="currentColor" strokeWidth="2" fill="none">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                </svg>
+                <span className="detail-text">Persone: <strong>{req.passengers} {req.passengers === '1' ? 'persona' : 'persone'}</strong></span>
+              </div>
 
-          {isOffer && req.luggage && (
-            <div className="ride-detail-item">
-              <svg viewBox="0 0 24 24" className="detail-icon" stroke="currentColor" strokeWidth="2" fill="none">
-                <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
-                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
-              </svg>
-              <span className="detail-text">Spazio bagagli/tenda: <strong>{req.luggage}</strong></span>
-            </div>
-          )}
+              {req.tripType && (
+                <div className="ride-detail-item">
+                  <svg viewBox="0 0 24 24" className="detail-icon" stroke="currentColor" strokeWidth="2" fill="none">
+                    <path d="M17 2.1l4 4-4 4M3 6h18M7 21.9l-4-4 4-4M21 18H3" />
+                  </svg>
+                  <span className="detail-text">Tipo viaggio: <strong>{req.tripType}</strong></span>
+                </div>
+              )}
 
-          {isOffer && req.vibe && (
-            <div className="ride-detail-item">
-              <svg viewBox="0 0 24 24" className="detail-icon" stroke="currentColor" strokeWidth="2" fill="none">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M8 14s1.5 2 4 2 4-2 4-2" />
-                <line x1="9" y1="9" x2="9.01" y2="9" />
-                <line x1="15" y1="9" x2="15.01" y2="9" />
-              </svg>
-              <span className="detail-text">Vibe viaggio: <strong>{req.vibe}</strong></span>
-            </div>
+              {req.travelTime && (
+                <div className="ride-detail-item">
+                  <svg viewBox="0 0 24 24" className="detail-icon" stroke="currentColor" strokeWidth="2" fill="none">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
+                  <span className="detail-text">Fascia oraria: <strong>{req.travelTime}</strong></span>
+                </div>
+              )}
+
+              {req.luggageNeed && (
+                <div className="ride-detail-item">
+                  <svg viewBox="0 0 24 24" className="detail-icon" stroke="currentColor" strokeWidth="2" fill="none">
+                    <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                  </svg>
+                  <span className="detail-text">Bagaglio: <strong>{req.luggageNeed}</strong></span>
+                </div>
+              )}
+
+              {req.luggageDetails && (
+                <div className="ride-detail-item">
+                  <svg viewBox="0 0 24 24" className="detail-icon" stroke="currentColor" strokeWidth="2" fill="none">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  </svg>
+                  <span className="detail-text">Cosa porta: <strong>{req.luggageDetails}</strong></span>
+                </div>
+              )}
+
+              {req.nearbyFlexible && (
+                <div className="ride-detail-item">
+                  <svg viewBox="0 0 24 24" className="detail-icon" stroke="currentColor" strokeWidth="2" fill="none">
+                    <path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10S2 17.523 2 12" />
+                  </svg>
+                  <span className="detail-text">Flessibile città vicine: <strong>{req.nearbyFlexible}</strong></span>
+                </div>
+              )}
+            </>
+          ) : (
+            /* --- OFFER DETAILS --- */
+            <>
+              <div className="ride-detail-item">
+                <svg viewBox="0 0 24 24" className="detail-icon" stroke="currentColor" strokeWidth="2" fill="none">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+                <span className="detail-text">Posti disponibili: <strong>{req.spots}</strong></span>
+              </div>
+
+              {req.tripType && (
+                <div className="ride-detail-item">
+                  <svg viewBox="0 0 24 24" className="detail-icon" stroke="currentColor" strokeWidth="2" fill="none">
+                    <path d="M17 2.1l4 4-4 4M3 6h18M7 21.9l-4-4 4-4M21 18H3" />
+                  </svg>
+                  <span className="detail-text">Tipo viaggio: <strong>{req.tripType}</strong></span>
+                </div>
+              )}
+
+              {req.travelTime && (
+                <div className="ride-detail-item">
+                  <svg viewBox="0 0 24 24" className="detail-icon" stroke="currentColor" strokeWidth="2" fill="none">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
+                  <span className="detail-text">Fascia oraria: <strong>{req.travelTime}</strong></span>
+                </div>
+              )}
+
+              {req.luggageCapacity && (
+                <div className="ride-detail-item">
+                  <svg viewBox="0 0 24 24" className="detail-icon" stroke="currentColor" strokeWidth="2" fill="none">
+                    <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                  </svg>
+                  <span className="detail-text">Spazio bagagli: <strong>{req.luggageCapacity}</strong></span>
+                </div>
+              )}
+
+              {req.luggageDetails && (
+                <div className="ride-detail-item">
+                  <svg viewBox="0 0 24 24" className="detail-icon" stroke="currentColor" strokeWidth="2" fill="none">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  </svg>
+                  <span className="detail-text">Cosa può caricare: <strong>{req.luggageDetails}</strong></span>
+                </div>
+              )}
+
+              {req.stops && (
+                <div className="ride-detail-item">
+                  <svg viewBox="0 0 24 24" className="detail-icon" stroke="currentColor" strokeWidth="2" fill="none">
+                    <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
+                    <line x1="9" y1="3" x2="9" y2="18" />
+                    <line x1="15" y1="6" x2="15" y2="21" />
+                  </svg>
+                  <span className="detail-text">Tappe possibili: <strong>{req.stops}</strong></span>
+                </div>
+              )}
+            </>
           )}
 
           {req.message && (

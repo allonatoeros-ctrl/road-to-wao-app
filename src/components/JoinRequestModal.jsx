@@ -5,6 +5,11 @@ export default function JoinRequestModal({ ride, userProfile, onClose, onSubmitR
     nickname: userProfile?.nickname || '',
     departureCity: userProfile?.departureCity || '',
     passengers: '1',
+    tripType: 'solo andata',
+    travelTime: 'mattina',
+    luggageNeed: 'leggero',
+    luggageDetails: '',
+    nearbyFlexible: 'sì',
     message: '',
     isOfAge: false
   });
@@ -46,6 +51,11 @@ export default function JoinRequestModal({ ride, userProfile, onClose, onSubmitR
         departure: form.departureCity,
         nickname: form.nickname,
         passengers: form.passengers,
+        tripType: form.tripType,
+        travelTime: form.travelTime,
+        luggageNeed: form.luggageNeed,
+        luggageDetails: form.luggageDetails,
+        nearbyFlexible: form.nearbyFlexible,
         message: form.message,
         status: 'pending'
       });
@@ -99,7 +109,7 @@ export default function JoinRequestModal({ ride, userProfile, onClose, onSubmitR
             </div>
 
             {/* Campi Form */}
-            <div className="wao-modal-body">
+            <div className="wao-modal-body" style={{ maxHeight: '55dvh', overflowY: 'auto', paddingRight: '4px' }}>
               <div className="form-group">
                 <label className="form-label" htmlFor="nickname">Nickname</label>
                 <input
@@ -112,6 +122,13 @@ export default function JoinRequestModal({ ride, userProfile, onClose, onSubmitR
                   className={`form-input ${errors.nickname ? 'input-error' : ''}`}
                 />
                 {errors.nickname && <span className="error-text">Inserisci il tuo nickname</span>}
+              </div>
+
+              {/* Sezione Viaggio */}
+              <div style={{ borderBottom: '1px solid rgba(255, 197, 71, 0.15)', paddingBottom: '4px', margin: '14px 0 8px 0' }}>
+                <h4 className="wao-display" style={{ fontSize: '11px', margin: 0, color: 'var(--amber-gold)', letterSpacing: '0.08em' }}>
+                  Viaggio
+                </h4>
               </div>
 
               <div className="form-row-grid">
@@ -130,7 +147,63 @@ export default function JoinRequestModal({ ride, userProfile, onClose, onSubmitR
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label" htmlFor="passengers">Quante persone?</label>
+                  <label className="form-label" htmlFor="tripType">Tipo viaggio</label>
+                  <select
+                    id="tripType"
+                    name="tripType"
+                    value={form.tripType}
+                    onChange={handleChange}
+                    className="form-input form-select"
+                  >
+                    <option value="solo andata">Solo andata</option>
+                    <option value="solo ritorno">Solo ritorno</option>
+                    <option value="andata e ritorno">Andata e ritorno</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-row-grid">
+                <div className="form-group">
+                  <label className="form-label" htmlFor="travelTime">Fascia oraria</label>
+                  <select
+                    id="travelTime"
+                    name="travelTime"
+                    value={form.travelTime}
+                    onChange={handleChange}
+                    className="form-input form-select"
+                  >
+                    <option value="mattina">Mattina</option>
+                    <option value="pomeriggio">Pomeriggio</option>
+                    <option value="sera">Sera</option>
+                    <option value="flessibile">Flessibile</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" htmlFor="nearbyFlexible">Flessibile città vicine</label>
+                  <select
+                    id="nearbyFlexible"
+                    name="nearbyFlexible"
+                    value={form.nearbyFlexible}
+                    onChange={handleChange}
+                    className="form-input form-select"
+                  >
+                    <option value="sì">Sì</option>
+                    <option value="no">No</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Sezione Posti e bagagli */}
+              <div style={{ borderBottom: '1px solid rgba(255, 197, 71, 0.15)', paddingBottom: '4px', margin: '14px 0 8px 0' }}>
+                <h4 className="wao-display" style={{ fontSize: '11px', margin: 0, color: 'var(--amber-gold)', letterSpacing: '0.08em' }}>
+                  Posti e bagagli
+                </h4>
+              </div>
+
+              <div className="form-row-grid">
+                <div className="form-group">
+                  <label className="form-label" htmlFor="passengers">Persone</label>
                   <select
                     id="passengers"
                     name="passengers"
@@ -144,6 +217,41 @@ export default function JoinRequestModal({ ride, userProfile, onClose, onSubmitR
                     <option value="4">4 persone</option>
                   </select>
                 </div>
+
+                <div className="form-group">
+                  <label className="form-label" htmlFor="luggageNeed">Tipo bagaglio</label>
+                  <select
+                    id="luggageNeed"
+                    name="luggageNeed"
+                    value={form.luggageNeed}
+                    onChange={handleChange}
+                    className="form-input form-select"
+                  >
+                    <option value="leggero">Leggero</option>
+                    <option value="medio">Medio</option>
+                    <option value="camping">Camping</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" htmlFor="luggageDetails">Dettagli bagaglio</label>
+                <input
+                  type="text"
+                  id="luggageDetails"
+                  name="luggageDetails"
+                  value={form.luggageDetails}
+                  onChange={handleChange}
+                  placeholder="Zaino, trolley, tenda, sacco a pelo..."
+                  className="form-input"
+                />
+              </div>
+
+              {/* Sezione Note */}
+              <div style={{ borderBottom: '1px solid rgba(255, 197, 71, 0.15)', paddingBottom: '4px', margin: '14px 0 8px 0' }}>
+                <h4 className="wao-display" style={{ fontSize: '11px', margin: 0, color: 'var(--amber-gold)', letterSpacing: '0.08em' }}>
+                  Note
+                </h4>
               </div>
 
               <div className="form-group">

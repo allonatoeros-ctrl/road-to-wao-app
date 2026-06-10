@@ -302,11 +302,15 @@ export default function ProfilePanel({ requests, userProfile, onUpdateProfile, o
             </div>
 
             <div style={{ fontSize: '12px', color: 'var(--text-soft)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <div>Città di partenza: <strong>{latestRequest.departure}</strong></div>
-              {latestRequest.date && <div>Data: <strong>{latestRequest.date}</strong></div>}
+              <div>Città: <strong>{latestRequest.departure}</strong></div>
+              <div>Tipo viaggio: <strong>{latestRequest.tripType || 'n/d'}</strong></div>
+              <div>Fascia oraria: <strong>{latestRequest.travelTime || 'n/d'}</strong></div>
               <div>
-                {latestRequest.type === 'offer' ? 'Posti disponibili: ' : 'Persone: '}
-                <strong>{latestRequest.type === 'offer' ? latestRequest.spots : `${latestRequest.passengers} ${latestRequest.passengers === '1' ? 'persona' : 'persone'}`}</strong>
+                {latestRequest.type === 'offer' ? (
+                  <>Spazio bagagli: <strong>{latestRequest.luggageCapacity || 'n/d'}</strong> (Posti: {latestRequest.spots})</>
+                ) : (
+                  <>Bagaglio: <strong>{latestRequest.luggageNeed || 'n/d'}</strong> (Persone: {latestRequest.passengers})</>
+                )}
               </div>
               <div>
                 Status: <strong style={{ color: travelStatusColor }}>{latestRequest.status || 'pending'}</strong>

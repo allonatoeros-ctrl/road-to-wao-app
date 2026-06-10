@@ -240,8 +240,7 @@ function App() {
               setRequests(prev => [offerWithId, ...prev]);
               handleUpdateProfile({
                 nickname: newOffer.nickname,
-                departureCity: newOffer.departure,
-                vibe: newOffer.vibe
+                departureCity: newOffer.departure
               });
             }}
             onGoToMessages={() => setCurrentTab('messaggi')}

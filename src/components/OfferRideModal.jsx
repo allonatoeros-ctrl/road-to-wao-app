@@ -6,9 +6,11 @@ export default function OfferRideModal({ userProfile, onClose, onSubmitOffer, on
     departureCity: userProfile?.departureCity || '',
     departureDate: '',
     spots: '2 posti liberi',
+    tripType: 'solo andata',
+    travelTime: 'mattina',
+    luggageCapacity: 'poco',
+    luggageDetails: '',
     stops: '',
-    luggageSpace: '',
-    vibe: userProfile?.vibe || '',
     message: '',
     isOfAge: false
   });
@@ -34,7 +36,6 @@ export default function OfferRideModal({ userProfile, onClose, onSubmitOffer, on
     if (!form.departureCity.trim()) newErrors.departureCity = true;
     if (!form.departureDate.trim()) newErrors.departureDate = true;
     if (!form.spots.trim()) newErrors.spots = true;
-    if (!form.vibe.trim()) newErrors.vibe = true;
     if (!form.message.trim()) newErrors.message = true;
     if (!form.isOfAge) newErrors.isOfAge = true;
 
@@ -54,9 +55,11 @@ export default function OfferRideModal({ userProfile, onClose, onSubmitOffer, on
         departure: form.departureCity,
         date: form.departureDate,
         spots: form.spots,
+        tripType: form.tripType,
+        travelTime: form.travelTime,
+        luggageCapacity: form.luggageCapacity,
+        luggageDetails: form.luggageDetails,
         stops: form.stops,
-        luggage: form.luggageSpace,
-        vibe: form.vibe,
         nickname: form.nickname,
         message: form.message,
         status: 'pending'
@@ -83,21 +86,28 @@ export default function OfferRideModal({ userProfile, onClose, onSubmitOffer, on
 
             {/* Campi Form */}
             <div className="wao-modal-body" style={{ maxHeight: '60dvh', overflowY: 'auto', paddingRight: '4px' }}>
-              <div className="form-row-grid">
-                <div className="form-group">
-                  <label className="form-label" htmlFor="offer-nickname">Nickname</label>
-                  <input
-                    type="text"
-                    id="offer-nickname"
-                    name="nickname"
-                    value={form.nickname}
-                    onChange={handleChange}
-                    placeholder="Es. CosmicDriver"
-                    className={`form-input ${errors.nickname ? 'input-error' : ''}`}
-                  />
-                  {errors.nickname && <span className="error-text">Inserisci il tuo nickname</span>}
-                </div>
+              <div className="form-group">
+                <label className="form-label" htmlFor="offer-nickname">Nickname</label>
+                <input
+                  type="text"
+                  id="offer-nickname"
+                  name="nickname"
+                  value={form.nickname}
+                  onChange={handleChange}
+                  placeholder="Es. CosmicDriver"
+                  className={`form-input ${errors.nickname ? 'input-error' : ''}`}
+                />
+                {errors.nickname && <span className="error-text">Inserisci il tuo nickname</span>}
+              </div>
 
+              {/* Sezione Viaggio */}
+              <div style={{ borderBottom: '1px solid rgba(255, 197, 71, 0.15)', paddingBottom: '4px', margin: '14px 0 8px 0' }}>
+                <h4 className="wao-display" style={{ fontSize: '11px', margin: 0, color: 'var(--amber-gold)', letterSpacing: '0.08em' }}>
+                  Viaggio
+                </h4>
+              </div>
+
+              <div className="form-row-grid">
                 <div className="form-group">
                   <label className="form-label" htmlFor="offer-departureCity">Da dove parti?</label>
                   <input
@@ -111,9 +121,7 @@ export default function OfferRideModal({ userProfile, onClose, onSubmitOffer, on
                   />
                   {errors.departureCity && <span className="error-text">Specifica la città di partenza</span>}
                 </div>
-              </div>
 
-              <div className="form-row-grid">
                 <div className="form-group">
                   <label className="form-label" htmlFor="offer-departureDate">Quando parti?</label>
                   <input
@@ -122,12 +130,67 @@ export default function OfferRideModal({ userProfile, onClose, onSubmitOffer, on
                     name="departureDate"
                     value={form.departureDate}
                     onChange={handleChange}
-                    placeholder="Es. 14 Agosto mattina"
+                    placeholder="Es. 14 Agosto"
                     className={`form-input ${errors.departureDate ? 'input-error' : ''}`}
                   />
                   {errors.departureDate && <span className="error-text">Specifica data/ora di partenza</span>}
                 </div>
+              </div>
 
+              <div className="form-row-grid">
+                <div className="form-group">
+                  <label className="form-label" htmlFor="offer-tripType">Tipo viaggio</label>
+                  <select
+                    id="offer-tripType"
+                    name="tripType"
+                    value={form.tripType}
+                    onChange={handleChange}
+                    className="form-input form-select"
+                  >
+                    <option value="solo andata">Solo andata</option>
+                    <option value="solo ritorno">Solo ritorno</option>
+                    <option value="andata e ritorno">Andata e ritorno</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" htmlFor="offer-travelTime">Fascia oraria</label>
+                  <select
+                    id="offer-travelTime"
+                    name="travelTime"
+                    value={form.travelTime}
+                    onChange={handleChange}
+                    className="form-input form-select"
+                  >
+                    <option value="mattina">Mattina</option>
+                    <option value="pomeriggio">Pomeriggio</option>
+                    <option value="sera">Sera</option>
+                    <option value="flessibile">Flessibile</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" htmlFor="offer-stops">Tappe possibili / città lungo strada</label>
+                <input
+                  type="text"
+                  id="offer-stops"
+                  name="stops"
+                  value={form.stops}
+                  onChange={handleChange}
+                  placeholder="Es. Bologna, Firenze"
+                  className="form-input"
+                />
+              </div>
+
+              {/* Sezione Posti e bagagli */}
+              <div style={{ borderBottom: '1px solid rgba(255, 197, 71, 0.15)', paddingBottom: '4px', margin: '14px 0 8px 0' }}>
+                <h4 className="wao-display" style={{ fontSize: '11px', margin: 0, color: 'var(--amber-gold)', letterSpacing: '0.08em' }}>
+                  Posti e bagagli
+                </h4>
+              </div>
+
+              <div className="form-row-grid">
                 <div className="form-group">
                   <label className="form-label" htmlFor="offer-spots">Posti disponibili</label>
                   <select
@@ -143,48 +206,41 @@ export default function OfferRideModal({ userProfile, onClose, onSubmitOffer, on
                     <option value="4 posti liberi">4 posti</option>
                   </select>
                 </div>
-              </div>
-
-              <div className="form-row-grid">
-                <div className="form-group">
-                  <label className="form-label" htmlFor="offer-stops">Tappe possibili (opzionale)</label>
-                  <input
-                    type="text"
-                    id="offer-stops"
-                    name="stops"
-                    value={form.stops}
-                    onChange={handleChange}
-                    placeholder="Es. Bologna, Firenze"
-                    className="form-input"
-                  />
-                </div>
 
                 <div className="form-group">
-                  <label className="form-label" htmlFor="offer-luggageSpace">Spazio bagagli/tenda (opzionale)</label>
-                  <input
-                    type="text"
-                    id="offer-luggageSpace"
-                    name="luggageSpace"
-                    value={form.luggageSpace}
+                  <label className="form-label" htmlFor="offer-luggageCapacity">Spazio bagagli</label>
+                  <select
+                    id="offer-luggageCapacity"
+                    name="luggageCapacity"
+                    value={form.luggageCapacity}
                     onChange={handleChange}
-                    placeholder="Es. Spazio per 2 zaini e tenda"
-                    className="form-input"
-                  />
+                    className="form-input form-select"
+                  >
+                    <option value="poco">Poco</option>
+                    <option value="medio">Medio</option>
+                    <option value="tanto">Tanto</option>
+                  </select>
                 </div>
               </div>
 
               <div className="form-group">
-                <label className="form-label" htmlFor="offer-vibe">Vibe viaggio</label>
+                <label className="form-label" htmlFor="offer-luggageDetails">Cosa puoi caricare?</label>
                 <input
                   type="text"
-                  id="offer-vibe"
-                  name="vibe"
-                  value={form.vibe}
+                  id="offer-luggageDetails"
+                  name="luggageDetails"
+                  value={form.luggageDetails}
                   onChange={handleChange}
-                  placeholder="Es. music-first / chill / chiacchiere"
-                  className={`form-input ${errors.vibe ? 'input-error' : ''}`}
+                  placeholder="Zaini, trolley, tenda, sacco a pelo..."
+                  className="form-input"
                 />
-                {errors.vibe && <span className="error-text">Inserisci la vibe del tuo viaggio</span>}
+              </div>
+
+              {/* Sezione Note */}
+              <div style={{ borderBottom: '1px solid rgba(255, 197, 71, 0.15)', paddingBottom: '4px', margin: '14px 0 8px 0' }}>
+                <h4 className="wao-display" style={{ fontSize: '11px', margin: 0, color: 'var(--amber-gold)', letterSpacing: '0.08em' }}>
+                  Note
+                </h4>
               </div>
 
               <div className="form-group">

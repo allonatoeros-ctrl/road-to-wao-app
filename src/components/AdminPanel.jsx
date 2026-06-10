@@ -97,15 +97,22 @@ export default function AdminPanel({ requests, onUpdateStatus, onClose }) {
                             <div>Città di partenza: <strong>{req.departure}</strong></div>
                             {req.date && <div>Quando: <strong>{req.date}</strong></div>}
                             <div>Posti disponibili: <strong>{req.spots}</strong></div>
+                            <div>Tipo viaggio: <strong>{req.tripType || 'n/d'}</strong></div>
+                            <div>Fascia oraria: <strong>{req.travelTime || 'n/d'}</strong></div>
+                            <div>Spazio bagagli: <strong>{req.luggageCapacity || 'n/d'}</strong></div>
+                            {req.luggageDetails && <div>Cosa può caricare: <strong>{req.luggageDetails}</strong></div>}
                             {req.stops && <div>Tappe: <strong>{req.stops}</strong></div>}
-                            {req.luggage && <div>Spazio bagagli: <strong>{req.luggage}</strong></div>}
-                            {req.vibe && <div>Vibe: <strong>{req.vibe}</strong></div>}
                           </>
                         ) : (
                           <>
                             <div>Passeggero: <strong>{req.nickname}</strong></div>
                             <div>Città di partenza: <strong>{req.departure}</strong></div>
                             <div>Persone: <strong>{req.passengers} {req.passengers === '1' ? 'persona' : 'persone'}</strong></div>
+                            <div>Tipo viaggio: <strong>{req.tripType || 'n/d'}</strong></div>
+                            <div>Fascia oraria: <strong>{req.travelTime || 'n/d'}</strong></div>
+                            <div>Bagaglio richiesto: <strong>{req.luggageNeed || 'n/d'}</strong></div>
+                            {req.luggageDetails && <div>Cosa porta: <strong>{req.luggageDetails}</strong></div>}
+                            <div>Flessibile città vicine: <strong>{req.nearbyFlexible || 'n/d'}</strong></div>
                           </>
                         )}
                       </div>
