@@ -223,6 +223,55 @@ function App() {
     });
   };
 
+  // ── Shared AdminPanel props (used by both render paths) ───────
+  const adminPanelProps = {
+    rides,
+    joinRequests,
+    generalRequests,
+    requests,
+    onApproveJoin: (joinId, rideId) => {
+      const join = joinRequests.find(r => r.id === joinId);
+      const pax = Number((join && (join.peopleCount || join.passengers)) || 1);
+      setJoinRequests(prev => prev.map(r => r.id === joinId ? { ...r, status: 'approved' } : r));
+      setRides(prev => prev.map(r => {
+        if (r.id !== rideId) return r;
+        const newSeats = Math.max(0, (r.seatsAvailable || 0) - pax);
+        return { ...r, seatsAvailable: newSeats, status: newSeats === 0 ? 'full' : r.status };
+      }));
+      setRequests(prev => prev.map(r => r.id === joinId ? { ...r, status: 'approved' } : r));
+    },
+    onRejectJoin: (joinId) => {
+      setJoinRequests(prev => prev.map(r => r.id === joinId ? { ...r, status: 'rejected' } : r));
+      setRequests(prev => prev.map(r => r.id === joinId ? { ...r, status: 'rejected' } : r));
+    },
+    onArchiveGeneralRequest: (id) => {
+      setGeneralRequests(prev => prev.map(r => r.id === id ? { ...r, archived: true } : r));
+      setRequests(prev => prev.map(r => r.id === id ? { ...r, archived: true } : r));
+    },
+    onUpdateStatus: (idOrIndex, newStatus) => {
+      setRequests(prev => {
+        const hasId = prev.some(r => r.id === idOrIndex);
+        if (hasId) return prev.map(r => r.id === idOrIndex ? { ...r, status: newStatus } : r);
+        if (typeof idOrIndex === 'number' && idOrIndex >= 0 && idOrIndex < prev.length) {
+          const updated = [...prev];
+          updated[idOrIndex] = { ...updated[idOrIndex], status: newStatus };
+          return updated;
+        }
+        return prev;
+      });
+    },
+    onClose: () => setCurrentTab('messaggi'),
+  };
+
+  // ── Desktop Control Room — renders OUTSIDE the mobile phone shell ──
+  if (currentTab === 'control-room') {
+    return (
+      <div className="desktop-admin-page">
+        <AdminPanel {...adminPanelProps} />
+      </div>
+    );
+  }
+
   return (
     <CosmicAppShell>
       <div className="road-to-wao-root">
@@ -357,30 +406,6 @@ function App() {
           </div>
         )}
 
-        {currentTab === 'control-room' && (
-          <div className="app-content">
-            <AdminPanel
-              requests={requests}
-              onUpdateStatus={(idOrIndex, newStatus) => {
-                setRequests(prev => {
-                  const hasId = prev.some(r => r.id === idOrIndex);
-                  if (hasId) {
-                    return prev.map(r => r.id === idOrIndex ? { ...r, status: newStatus } : r);
-                  }
-                  if (typeof idOrIndex === 'number' && idOrIndex >= 0 && idOrIndex < prev.length) {
-                    const updated = [...prev];
-                    updated[idOrIndex] = { ...updated[idOrIndex], status: newStatus };
-                    return updated;
-                  }
-                  return prev;
-                });
-                setJoinRequests(prev => prev.map(r => r.id === idOrIndex ? { ...r, status: newStatus } : r));
-                setGeneralRequests(prev => prev.map(r => r.id === idOrIndex ? { ...r, status: newStatus } : r));
-              }}
-              onClose={() => setCurrentTab('messaggi')}
-            />
-          </div>
-        )}
 
         {/* Barra di Navigazione Fissa in Basso */}
         <BottomNav activeTab={currentTab} setActiveTab={setCurrentTab} />

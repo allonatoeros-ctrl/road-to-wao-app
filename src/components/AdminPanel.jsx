@@ -1,380 +1,437 @@
-import React from 'react';
+import React, { useState } from 'react';
 
-// Stable key helper function
-function getEntryKey(entry, index) {
-  if (entry && entry.id) return entry.id;
-  if (entry && entry.createdAt) return entry.createdAt;
-  return `${entry?.type || 'req'}-${entry?.route || ''}-${entry?.nickname || ''}-${index}`;
+function fmtDate(iso) {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' });
+  } catch {
+    return '';
+  }
 }
 
-export default function AdminPanel({ requests, onUpdateStatus, onClose }) {
-  // Sort requests from newest to oldest by createdAt
-  const sortedRequests = [...requests].sort((a, b) => {
-    const dateA = a.createdAt ? new Date(a.createdAt).getTime() : a.id || 0;
-    const dateB = b.createdAt ? new Date(b.createdAt).getTime() : b.id || 0;
-    return dateB - dateA;
+export default function AdminPanel({
+  rides = [],
+  joinRequests = [],
+  generalRequests = [],
+  requests = [],
+  onApproveJoin,
+  onRejectJoin,
+  onArchiveGeneralRequest,
+  onUpdateStatus,
+  onClose,
+}) {
+  const [expandedRides, setExpandedRides] = useState({});
+  const [showHistory, setShowHistory] = useState(false);
+
+  const toggleRide = (id) =>
+    setExpandedRides((prev) => ({ ...prev, [id]: !prev[id] }));
+
+  // ── KPI ──────────────────────────────────────────────────────
+  const openRides = rides.filter((r) => r.status !== 'full' && r.status !== 'closed');
+  const totalSeats = openRides.reduce((acc, r) => acc + (r.seatsAvailable || 0), 0);
+  const pendingJoins = joinRequests.filter((r) => r.status === 'pending' && !r.archived);
+  const activeGenerals = generalRequests.filter((r) => !r.archived && r.status !== 'rejected');
+
+  // ── LEFT — rides + their pending joins ──────────────────────
+  const sortedRides = [...rides].sort((a, b) => {
+    // open rides first, then by id (newest last added = first in INITIAL_RIDES order)
+    if (a.status === 'full' && b.status !== 'full') return 1;
+    if (a.status !== 'full' && b.status === 'full') return -1;
+    return 0;
   });
 
-  const pendingRequests = sortedRequests.filter(r => r.status === 'pending' || !r.status);
-  const processedRequests = sortedRequests.filter(r => r.status && r.status !== 'pending');
+  const pendingJoinsByRide = (rideId) =>
+    joinRequests.filter((j) => j.rideId === rideId && j.status === 'pending' && !j.archived);
 
-  const getCity = (entry) => (entry.departureCity || entry.departure || "").trim().toLowerCase();
+  // ── HISTORY — approved + rejected joins ─────────────────────
+  const historyJoins = [...joinRequests]
+    .filter((j) => j.status === 'approved' || j.status === 'rejected')
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
-  const offers = sortedRequests.filter(r => r.type === 'offer' && (r.status === 'pending' || r.status === 'approved'));
-  const joins = sortedRequests.filter(r => r.type === 'join' && (r.status === 'pending' || r.status === 'approved'));
+  // legacy offers from requests that are not joins
+  const legacyOffers = requests.filter(
+    (r) => r.type === 'offer' && (r.status === 'approved' || r.status === 'rejected'),
+  );
 
-  const isCompatible = (offer, join) => {
-    const cityOffer = getCity(offer);
-    const cityJoin = getCity(join);
-    if (!cityOffer || !cityJoin || cityOffer !== cityJoin) return false;
+  // ── RIGHT — general requests ─────────────────────────────────
+  const activeGenReqs = generalRequests.filter((r) => !r.archived);
+  const archivedGenReqs = generalRequests.filter((r) => r.archived);
 
-    const tripOffer = (offer.tripType || '').trim().toLowerCase();
-    const tripJoin = (join.tripType || '').trim().toLowerCase();
-    if (!tripOffer || !tripJoin || tripOffer !== tripJoin) return false;
-
-    const timeOffer = (offer.travelTime || '').trim().toLowerCase();
-    const timeJoin = (join.travelTime || '').trim().toLowerCase();
-    
-    if (timeOffer !== timeJoin && timeOffer !== 'flessibile' && timeJoin !== 'flessibile') {
-      return false;
-    }
-    
-    return true;
-  };
-
-  const candidates = [];
-  offers.forEach(offer => {
-    const compatibleJoins = joins.filter(join => isCompatible(offer, join));
-    if (compatibleJoins.length > 0) {
-      candidates.push({
-        offer,
-        joins: compatibleJoins.slice(0, 3)
+  // ── RIGHT — crew candidates (read-only) ──────────────────────
+  // Match open rides against their pending joins + any compatible general request
+  const crewCandidates = openRides
+    .map((ride) => {
+      const joins = pendingJoinsByRide(ride.id);
+      const compatGenerals = generalRequests.filter((g) => {
+        if (g.archived) return false;
+        const sameCity =
+          (g.departureCity || '').toLowerCase() === (ride.departureCity || '').toLowerCase();
+        const sameTrip =
+          !g.tripType ||
+          !ride.tripType ||
+          g.tripType.toLowerCase() === ride.tripType.toLowerCase();
+        return sameCity && sameTrip;
       });
-    }
-  });
+      if (joins.length === 0 && compatGenerals.length === 0) return null;
+      return { ride, joins, compatGenerals };
+    })
+    .filter(Boolean);
 
-  const visibleCandidates = candidates.slice(0, 3);
+  // ── Empty state: no data at all ──────────────────────────────
+  const totalItems =
+    joinRequests.length + generalRequests.length + requests.length + rides.length;
 
   return (
-    <div className="admin-panel-content" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
-      {/* Header */}
-      <header className="board-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <button 
-            type="button" 
+    <div className="cr-root">
+      {/* ── HEADER ─────────────────────────────────────────── */}
+      <div className="cr-header">
+        <div className="cr-header-top">
+          <button
+            type="button"
             className="wao-cancel-button wao-display"
             onClick={onClose}
-            style={{ width: 'auto', padding: '6px 12px', fontSize: '11.5px', display: 'flex', alignItems: 'center', gap: '4px' }}
+            style={{ width: 'auto', padding: '5px 12px', fontSize: '11px' }}
           >
             ← Indietro
           </button>
+          <h1 className="cr-title">Control Room</h1>
+          <span className="cr-demo-badge">Demo · non ufficiale</span>
         </div>
-        <h1 className="board-title wao-display" style={{ marginTop: '10px' }}>Control Room</h1>
-        <p className="board-subtitle">Pannello driver demo. Approva o rifiuta le richieste in tempo reale.</p>
-      </header>
+        <p className="cr-subtitle">
+          Panoramica passaggi · Approva richieste join · Gestisci richieste generali.
+        </p>
+      </div>
 
-      {requests.length === 0 ? (
-        <div className="placeholder-card">
-          <div className="placeholder-icon">
-            <svg viewBox="0 0 24 24" width="48" height="48" stroke="var(--amber-gold)" strokeWidth="1.5" fill="none">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-            </svg>
-          </div>
-          <h2 className="placeholder-title wao-display">Nessuna richiesta da moderare</h2>
-          <p className="placeholder-text">
-            Invia una richiesta dalla Bacheca per vederla apparire qui.
-          </p>
+      {/* ── KPI STRIP ──────────────────────────────────────── */}
+      <div className="cr-kpi-strip">
+        <div className="cr-kpi-tile cr-kpi-tile--open">
+          <span className="cr-kpi-value">{openRides.length}</span>
+          <span className="cr-kpi-label">Ride Aperte</span>
         </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
-          
-          {/* Crew Candidate Section */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 className="wao-display" style={{ fontSize: '12.5px', color: 'var(--amber-gold)', letterSpacing: '0.05em', margin: 0 }}>
-                Crew candidate ({candidates.length})
-              </h3>
-              <span style={{ 
-                fontSize: '9px', 
-                color: '#d18eff', 
-                background: 'rgba(177, 43, 255, 0.15)', 
-                border: '1px solid rgba(177, 43, 255, 0.3)',
-                padding: '2px 8px',
-                borderRadius: '20px',
-                fontWeight: 'bold',
-                letterSpacing: '0.02em',
-                textTransform: 'uppercase'
-              }}>
-                Match demo — da confermare manualmente
-              </span>
-            </div>
+        <div className="cr-kpi-tile cr-kpi-tile--seats">
+          <span className="cr-kpi-value">{totalSeats}</span>
+          <span className="cr-kpi-label">Posti disponibili</span>
+        </div>
+        <div className="cr-kpi-tile cr-kpi-tile--join">
+          <span className="cr-kpi-value">{pendingJoins.length}</span>
+          <span className="cr-kpi-label">Join Pendenti</span>
+        </div>
+        <div className="cr-kpi-tile cr-kpi-tile--gen">
+          <span className="cr-kpi-value">{activeGenerals.length}</span>
+          <span className="cr-kpi-label">Generali Attive</span>
+        </div>
+      </div>
 
-            {visibleCandidates.length === 0 ? (
-              <div style={{
-                background: 'rgba(255, 255, 255, 0.02)',
-                border: '1px dashed rgba(255, 197, 71, 0.15)',
-                borderRadius: '12px',
-                padding: '16px',
-                textAlign: 'center'
-              }}>
-                <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>
-                  Nessuna crew candidate al momento. Approva o raccogli nuove richieste/offerte compatibili.
-                </p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {visibleCandidates.map((cand, candIdx) => {
-                  const { offer, joins } = cand;
-                  return (
-                    <div key={`cand-${offer.id || candIdx}`} className="ride-card" style={{ border: '1px solid rgba(177, 43, 255, 0.3)' }}>
-                      <div className="ride-card-glow" style={{
-                        position: 'absolute',
-                        top: '-40px',
-                        right: '-40px',
-                        width: '100px',
-                        height: '100px',
-                        background: 'radial-gradient(circle, rgba(177, 43, 255, 0.15) 0%, transparent 70%)',
-                        zIndex: -1,
-                        pointerEvents: 'none'
-                      }} aria-hidden="true"></div>
+      {/* ── MAIN 2-COL GRID ────────────────────────────────── */}
+      <div className="cr-main-grid">
 
-                      {/* Header della card candidato */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '8px' }}>
-                        <div>
-                          <div className="wao-display" style={{ fontSize: '14px', color: 'var(--text-main)', textTransform: 'none' }}>
-                            🚗 Crew di: <strong style={{ color: 'var(--amber-gold)' }}>{offer.nickname}</strong>
-                          </div>
-                          <div style={{ fontSize: '11.5px', color: 'var(--text-soft)', marginTop: '4px' }}>
-                            Partenza: <strong>{offer.departure || offer.departureCity}</strong> · {offer.tripType}
-                          </div>
-                        </div>
-                        <span style={{
-                          fontSize: '9px',
-                          fontWeight: 'bold',
-                          textTransform: 'uppercase',
-                          background: 'rgba(177, 43, 255, 0.2)',
-                          color: '#d18eff',
-                          border: '1px solid rgba(177, 43, 255, 0.4)',
-                          padding: '2px 6px',
-                          borderRadius: '4px'
-                        }}>
-                          Offerta attiva
-                        </span>
-                      </div>
+        {/* ════ LEFT COLUMN ════════════════════════════════════ */}
+        <div className="cr-left">
 
-                      {/* Dettagli logistici offerta */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '11.5px', color: 'var(--text-soft)', background: 'rgba(0, 0, 0, 0.2)', padding: '8px', borderRadius: '8px' }}>
-                        <div>Orario: <strong>{offer.travelTime}</strong></div>
-                        <div>Posti: <strong>{offer.spots || 'n/d'}</strong></div>
-                        <div>Spazio bagagli: <strong>{offer.luggageCapacity || 'n/d'}</strong></div>
-                        <div>Cosa carica: <strong>{offer.luggageDetails || 'n/d'}</strong></div>
-                        {offer.stops && <div style={{ gridColumn: 'span 2' }}>Tappe possibili: <strong>{offer.stops}</strong></div>}
-                      </div>
+          {/* ─ Rides + grouped join requests ─ */}
+          <div>
+            <p className="cr-section-title">Passaggi ({rides.length})</p>
 
-                      {/* Rider Compatibili */}
-                      <div style={{ marginTop: '4px' }}>
-                        <div style={{ fontSize: '10.5px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--turquoise)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span>👥 Rider compatibili ({joins.length})</span>
-                          <span style={{ flex: 1, height: '1px', background: 'rgba(42, 242, 224, 0.15)' }}></span>
-                        </div>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          {joins.map((join, joinIdx) => (
-                            <div key={`cand-join-${join.id || joinIdx}`} style={{
-                              background: 'rgba(255, 255, 255, 0.02)',
-                              border: '1px solid rgba(42, 242, 224, 0.15)',
-                              borderRadius: '8px',
-                              padding: '8px 10px'
-                            }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                                <span className="wao-display" style={{ fontSize: '12px', color: 'var(--turquoise)', textTransform: 'none' }}>
-                                  {join.nickname}
-                                </span>
-                                <span style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>
-                                  👥 {join.passengers || join.peopleCount || '1'} {join.passengers === '1' ? 'persona' : 'persone'}
-                                </span>
-                              </div>
-
-                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '11px', color: 'var(--text-muted)' }}>
-                                <div>Bagaglio: <strong style={{ color: 'var(--text-soft)' }}>{join.luggageNeed || 'n/d'}</strong></div>
-                                <div>Flessibile vicine: <strong style={{ color: 'var(--text-soft)' }}>{join.nearbyFlexible || 'n/d'}</strong></div>
-                                {join.luggageDetails && (
-                                  <div style={{ gridColumn: 'span 2' }}>
-                                    Cosa porta: <strong style={{ color: 'var(--text-soft)' }}>{join.luggageDetails}</strong>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Richieste da gestire */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <h3 className="wao-display" style={{ fontSize: '12px', color: 'var(--amber-gold)', letterSpacing: '0.05em' }}>
-              Moderazione Pendenti ({pendingRequests.length})
-            </h3>
-            
-            {pendingRequests.length === 0 ? (
-              <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', fontStyle: 'italic', padding: '10px 0' }}>
-                Non ci sono attività in attesa di approvazione.
+            {rides.length === 0 && (
+              <p className="cr-empty">
+                Nessun passaggio disponibile. Crea un'offerta dalla home.
               </p>
-            ) : (
-              pendingRequests.map((req, index) => {
-                const isOffer = req.type === 'offer';
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {sortedRides.map((ride) => {
+                const isFull = ride.status === 'full' || ride.seatsAvailable === 0;
+                const isOpen = expandedRides[ride.id];
+                const rideJoins = pendingJoinsByRide(ride.id);
+
                 return (
-                  <div key={getEntryKey(req, index)} className="ride-card card-pending-gold">
-                    <div className="ride-card-glow-gold" aria-hidden="true"></div>
-                    
-                    <div className="ride-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span className="ride-type-tag" style={{
-                        padding: '2px 8px',
-                        borderRadius: '4px',
-                        fontSize: '9px',
-                        fontWeight: 'bold',
-                        textTransform: 'uppercase',
-                        background: isOffer ? 'rgba(177, 43, 255, 0.2)' : 'rgba(42, 242, 224, 0.2)',
-                        color: isOffer ? '#d18eff' : 'var(--turquoise)',
-                        border: isOffer ? '1px solid rgba(177, 43, 255, 0.4)' : '1px solid rgba(42, 242, 224, 0.4)'
-                      }}>
-                        {isOffer ? "🚗 Offerta Passaggio" : "👥 Richiesta Join"}
+                  <div
+                    key={ride.id}
+                    className={`cr-ride-card${isFull ? ' cr-ride-card--full' : ''}`}
+                  >
+                    {/* Ride header row — click to expand */}
+                    <div
+                      className="cr-ride-header"
+                      onClick={() => toggleRide(ride.id)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => e.key === 'Enter' && toggleRide(ride.id)}
+                      aria-expanded={isOpen}
+                    >
+                      <span className="cr-ride-route">
+                        {ride.departureCity} → {ride.destination || 'WAO'}
                       </span>
-                      <span className="ride-badge badge-pending-gold">
-                        Pendente
+                      <span className="cr-ride-meta">
+                        {ride.driver} · {ride.departureDate} · {ride.travelTime}
                       </span>
+                      <span className={`cr-seat-pill ${isFull ? 'cr-seat-pill--full' : 'cr-seat-pill--ok'}`}>
+                        {isFull
+                          ? 'Completo'
+                          : `${ride.seatsAvailable}/${ride.seatsTotal} posti`}
+                      </span>
+                      {rideJoins.length > 0 && (
+                        <span
+                          style={{
+                            fontSize: '10px',
+                            background: 'rgba(255,197,71,0.12)',
+                            color: 'var(--amber-gold)',
+                            border: '1px solid rgba(255,197,71,0.25)',
+                            borderRadius: '20px',
+                            padding: '1px 7px',
+                            fontWeight: 700,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {rideJoins.length} in attesa
+                        </span>
+                      )}
+                      <span className="cr-expand-toggle">{isOpen ? '▲' : '▼'}</span>
                     </div>
 
-                    <div className="ride-details">
-                      <div className="ride-route wao-display" style={{ fontSize: '15px', textTransform: 'none', margin: '4px 0' }}>
-                        {req.route}
-                      </div>
-                      
-                      <div style={{ fontSize: '12.5px', color: 'var(--text-soft)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        {isOffer ? (
-                          <>
-                            <div>Driver: <strong>{req.nickname}</strong></div>
-                            <div>Città di partenza: <strong>{req.departure}</strong></div>
-                            {req.date && <div>Quando: <strong>{req.date}</strong></div>}
-                            <div>Posti disponibili: <strong>{req.spots}</strong></div>
-                            <div>Tipo viaggio: <strong>{req.tripType || 'n/d'}</strong></div>
-                            <div>Fascia oraria: <strong>{req.travelTime || 'n/d'}</strong></div>
-                            <div>Spazio bagagli: <strong>{req.luggageCapacity || 'n/d'}</strong></div>
-                            {req.luggageDetails && <div>Cosa può caricare: <strong>{req.luggageDetails}</strong></div>}
-                            {req.stops && <div>Tappe: <strong>{req.stops}</strong></div>}
-                          </>
+                    {/* Expandable join request list */}
+                    {isOpen && (
+                      <div className="cr-join-list">
+                        {rideJoins.length === 0 ? (
+                          <div className="cr-join-row">
+                            <span className="cr-join-detail" style={{ fontStyle: 'italic' }}>
+                              Nessuna richiesta pending per questo passaggio.
+                            </span>
+                          </div>
                         ) : (
-                          <>
-                            <div>Passeggero: <strong>{req.nickname}</strong></div>
-                            <div>Città di partenza: <strong>{req.departure}</strong></div>
-                            <div>Persone: <strong>{req.passengers} {req.passengers === '1' ? 'persona' : 'persone'}</strong></div>
-                            <div>Tipo viaggio: <strong>{req.tripType || 'n/d'}</strong></div>
-                            <div>Fascia oraria: <strong>{req.travelTime || 'n/d'}</strong></div>
-                            <div>Bagaglio richiesto: <strong>{req.luggageNeed || 'n/d'}</strong></div>
-                            {req.luggageDetails && <div>Cosa porta: <strong>{req.luggageDetails}</strong></div>}
-                            <div>Flessibile città vicine: <strong>{req.nearbyFlexible || 'n/d'}</strong></div>
-                          </>
+                          rideJoins.map((jr) => {
+                            const pax = jr.peopleCount || jr.passengers || '1';
+                            const luggage = jr.luggageNeed || '—';
+                            const msg = jr.message ? `"${jr.message.slice(0, 50)}${jr.message.length > 50 ? '…' : ''}"` : '';
+                            return (
+                              <div key={jr.id} className="cr-join-row">
+                                <span className="cr-join-name">{jr.nickname}</span>
+                                <span className="cr-join-detail">
+                                  {pax} {pax === '1' ? 'persona' : 'persone'} ·{' '}
+                                  bagaglio: {luggage}
+                                  {jr.tripType ? ` · ${jr.tripType}` : ''}
+                                  {msg ? ` · ${msg}` : ''}
+                                </span>
+                                <span className="cr-join-detail" style={{ flexShrink: 0, flex: 'none', width: 'auto', color: 'var(--text-muted)', fontSize: '10px' }}>
+                                  {fmtDate(jr.createdAt)}
+                                </span>
+                                <div className="cr-join-actions">
+                                  <button
+                                    type="button"
+                                    className="cr-btn-approve"
+                                    onClick={() => onApproveJoin && onApproveJoin(jr.id, ride.id)}
+                                  >
+                                    Approva
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="cr-btn-reject"
+                                    onClick={() => onRejectJoin && onRejectJoin(jr.id)}
+                                  >
+                                    Rifiuta
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })
                         )}
                       </div>
-
-                      {req.message && (
-                        <div style={{ 
-                          marginTop: '6px', 
-                          padding: '8px 10px', 
-                          background: 'rgba(0, 0, 0, 0.25)', 
-                          borderRadius: '8px',
-                          borderLeft: '2px solid var(--amber-gold)',
-                          fontSize: '11.5px',
-                          color: 'var(--text-soft)',
-                          fontStyle: 'italic'
-                        }}>
-                          "{req.message}"
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Azioni di approvazione */}
-                    <div style={{ display: 'flex', gap: '10px', marginTop: '10px', paddingTop: '10px', borderTop: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                      <button
-                        type="button"
-                        className="wao-primary-button wao-display"
-                        onClick={() => onUpdateStatus(req.id, 'approved')}
-                        style={{ flex: 1, padding: '10px 14px', fontSize: '11px', background: 'linear-gradient(135deg, var(--turquoise), #17b3a4)', boxShadow: '0 0 10px rgba(42, 242, 224, 0.2)', color: '#0b0c1e' }}
-                      >
-                        Approva
-                      </button>
-                      <button
-                        type="button"
-                        className="wao-secondary-button wao-display"
-                        onClick={() => onUpdateStatus(req.id, 'rejected')}
-                        style={{ flex: 1, padding: '10px 14px', fontSize: '11px' }}
-                      >
-                        Rifiuta
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-
-          {/* Storico richieste gestite */}
-          {processedRequests.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '10px' }}>
-              <h3 className="wao-display" style={{ fontSize: '12px', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>
-                Storico Moderazione ({processedRequests.length})
-              </h3>
-              
-              {processedRequests.map((req, index) => {
-                const isApproved = req.status === 'approved';
-                const isOffer = req.type === 'offer';
-                return (
-                  <div 
-                    key={getEntryKey(req, index)} 
-                    className={`ride-card ${isApproved ? 'card-approved' : 'card-rejected'}`}
-                    style={{ opacity: 0.8 }}
-                  >
-                    {isApproved && <div className="ride-card-glow-approved" aria-hidden="true"></div>}
-                    
-                    <div className="ride-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span className="ride-type-tag" style={{
-                        padding: '2px 6px',
-                        borderRadius: '4px',
-                        fontSize: '9px',
-                        fontWeight: 'bold',
-                        textTransform: 'uppercase',
-                        background: isOffer ? 'rgba(177, 43, 255, 0.15)' : 'rgba(42, 242, 224, 0.15)',
-                        color: isOffer ? '#d18eff' : 'var(--turquoise)',
-                        border: isOffer ? '1px solid rgba(177, 43, 255, 0.3)' : '1px solid rgba(42, 242, 224, 0.3)'
-                      }}>
-                        {isOffer ? "🚗 Offerta" : "👥 Richiesta"}
-                      </span>
-                      <span className={`ride-badge ${isApproved ? 'badge-approved' : 'badge-rejected'}`}>
-                        {isApproved ? 'Approvata' : 'Rifiutata'}
-                      </span>
-                    </div>
-
-                    <div className="ride-details" style={{ fontSize: '12.5px' }}>
-                      <div className="ride-route wao-display" style={{ fontSize: '14px', textTransform: 'none', margin: '2px 0' }}>
-                        {req.route}
-                      </div>
-                      <div style={{ color: 'var(--text-soft)' }}>
-                        {isOffer ? "Driver: " : "Passeggero: "}
-                        <strong>{req.nickname}</strong>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 );
               })}
             </div>
-          )}
+          </div>
+
+          {/* ─ Moderation history ─ */}
+          <div>
+            <button
+              type="button"
+              className="cr-history-toggle"
+              onClick={() => setShowHistory((v) => !v)}
+            >
+              {showHistory ? '▲ Nascondi' : '▼ Mostra'} storico moderazione
+              ({historyJoins.length + legacyOffers.length})
+            </button>
+
+            {showHistory && (
+              <>
+                {historyJoins.length === 0 && legacyOffers.length === 0 ? (
+                  <p className="cr-empty">Nessuna moderazione effettuata.</p>
+                ) : (
+                  <div className="cr-history-list">
+                    {historyJoins.map((j, i) => {
+                      const ride = rides.find((r) => r.id === j.rideId);
+                      const route = ride
+                        ? `${ride.departureCity} → ${ride.destination || 'WAO'}`
+                        : (j.rideSummary || 'Ride non trovato');
+                      return (
+                        <div key={j.id || i} className="cr-history-row">
+                          <span className="cr-history-name">{j.nickname}</span>
+                          <span className="cr-history-route">{route}</span>
+                          <span className="cr-history-date">{fmtDate(j.createdAt)}</span>
+                          <span className={`cr-status-badge cr-status-badge--${j.status}`}>
+                            {j.status}
+                          </span>
+                        </div>
+                      );
+                    })}
+
+                    {legacyOffers.length > 0 && (
+                      <>
+                        <div
+                          className="cr-history-row"
+                          style={{ background: 'rgba(177,43,255,0.04)', fontStyle: 'italic' }}
+                        >
+                          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                            — Offerte passaggio (legacy) —
+                          </span>
+                        </div>
+                        {legacyOffers.map((r, i) => (
+                          <div key={r.id || i} className="cr-history-row">
+                            <span className="cr-history-name">{r.nickname}</span>
+                            <span className="cr-history-route">{r.route || r.departure}</span>
+                            <span className="cr-history-date">{fmtDate(r.createdAt)}</span>
+                            <span className={`cr-status-badge cr-status-badge--${r.status}`}>
+                              {r.status}
+                            </span>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
-      )}
+
+        {/* ════ RIGHT SIDEBAR ══════════════════════════════════ */}
+        <div className="cr-sidebar">
+
+          {/* ─ General Requests ─ */}
+          <div>
+            <p className="cr-section-title">Richieste generali ({activeGenReqs.length})</p>
+
+            {activeGenReqs.length === 0 ? (
+              <p className="cr-empty">Nessuna richiesta generale attiva.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {activeGenReqs.map((g) => (
+                  <div key={g.id} className="cr-gen-card">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                      <span className="cr-gen-name">{g.nickname}</span>
+                      <span className="cr-status-badge cr-status-badge--active">
+                        {g.status || 'active'}
+                      </span>
+                    </div>
+                    <div className="cr-gen-meta">
+                      <span>📍 {g.departureCity}</span>
+                      {g.travelTime && <span>🕐 {g.travelTime}</span>}
+                      {g.tripType && <span>↔ {g.tripType}</span>}
+                      {(g.passengers || g.peopleCount) && (
+                        <span>👥 {g.passengers || g.peopleCount}</span>
+                      )}
+                      {g.luggageNeed && <span>🎒 {g.luggageNeed}</span>}
+                    </div>
+                    {g.message && (
+                      <div
+                        style={{
+                          fontSize: '11px',
+                          color: 'var(--text-muted)',
+                          fontStyle: 'italic',
+                          borderLeft: '2px solid rgba(177,43,255,0.3)',
+                          paddingLeft: '8px',
+                        }}
+                      >
+                        "{g.message.slice(0, 80)}{g.message.length > 80 ? '…' : ''}"
+                      </div>
+                    )}
+                    <div className="cr-gen-actions">
+                      <button
+                        type="button"
+                        className="cr-btn-archive"
+                        onClick={() => onArchiveGeneralRequest && onArchiveGeneralRequest(g.id)}
+                      >
+                        Archivia
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Archived general requests count */}
+            {archivedGenReqs.length > 0 && (
+              <p
+                style={{
+                  fontSize: '10.5px',
+                  color: 'var(--text-muted)',
+                  marginTop: '8px',
+                  fontStyle: 'italic',
+                }}
+              >
+                +{archivedGenReqs.length} archiviate
+              </p>
+            )}
+          </div>
+
+          {/* ─ Crew Candidates (read-only) ─ */}
+          <div>
+            <p className="cr-section-title">Crew candidate ({crewCandidates.length})</p>
+            <p
+              style={{
+                fontSize: '9.5px',
+                color: 'var(--text-muted)',
+                marginBottom: '8px',
+                fontStyle: 'italic',
+              }}
+            >
+              Match demo · conferma manuale dalla sezione passaggi
+            </p>
+
+            {crewCandidates.length === 0 ? (
+              <p className="cr-empty">
+                Nessun match al momento. Servono ride aperte con join pending.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {crewCandidates.slice(0, 5).map(({ ride, joins, compatGenerals }) => (
+                  <div key={ride.id} className="cr-candidate-card">
+                    <span className="cr-candidate-ride">
+                      🚗 {ride.departureCity} → {ride.destination || 'WAO'} · {ride.driver}
+                    </span>
+
+                    {joins.slice(0, 3).map((j) => (
+                      <div key={j.id} className="cr-candidate-rider-row">
+                        <span>{j.nickname}</span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>
+                          👥 {j.peopleCount || j.passengers || 1}
+                        </span>
+                      </div>
+                    ))}
+
+                    {compatGenerals.length > 0 && (
+                      <div
+                        style={{
+                          fontSize: '10.5px',
+                          color: '#d18eff',
+                          marginTop: '2px',
+                          opacity: 0.8,
+                        }}
+                      >
+                        + {compatGenerals.length} richiesta generale compatibile
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+        </div>
+        {/* ════ END SIDEBAR ════════════════════════════════════ */}
+      </div>
+      {/* ════ END MAIN GRID ═══════════════════════════════════ */}
     </div>
   );
 }
