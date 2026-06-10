@@ -4,11 +4,13 @@ import SolarHeroBackground from './components/SolarHeroBackground';
 import BottomNav from './components/BottomNav';
 import RoadBoard from './components/RoadBoard';
 import JoinRequestModal from './components/JoinRequestModal';
+import MessagesPanel from './components/MessagesPanel';
 import './road-to-wao.css';
 
 function App() {
   const [currentTab, setCurrentTab] = useState('casa');
   const [selectedRide, setSelectedRide] = useState(null);
+  const [requests, setRequests] = useState([]);
 
   return (
     <CosmicAppShell>
@@ -106,7 +108,16 @@ function App() {
           <RoadBoard onJoinRide={setSelectedRide} />
         )}
 
-        {(currentTab === 'messaggi' || currentTab === 'profilo') && (
+        {currentTab === 'messaggi' && (
+          <div className="app-content">
+            <MessagesPanel 
+              requests={requests} 
+              onFindRide={() => setCurrentTab('bacheca')} 
+            />
+          </div>
+        )}
+
+        {currentTab === 'profilo' && (
           <div className="app-content placeholder-content">
             <header className="app-header">
               <h1 className="app-brand wao-display">Road to WAO</h1>
@@ -114,22 +125,14 @@ function App() {
             </header>
             <div className="placeholder-card">
               <div className="placeholder-icon">
-                {currentTab === 'messaggi' ? (
-                  <svg viewBox="0 0 24 24" width="48" height="48" stroke="var(--amber-gold)" strokeWidth="1.5" fill="none">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" width="48" height="48" stroke="var(--magenta-purple)" strokeWidth="1.5" fill="none">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                    <circle cx="12" cy="7" r="4" />
-                  </svg>
-                )}
+                <svg viewBox="0 0 24 24" width="48" height="48" stroke="var(--magenta-purple)" strokeWidth="1.5" fill="none">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
               </div>
-              <h2 className="placeholder-title wao-display">
-                {currentTab === 'messaggi' ? 'Area Messaggi' : 'Profilo Utente'}
-              </h2>
+              <h2 className="placeholder-title wao-display">Profilo Utente</h2>
               <p className="placeholder-text">
-                Questa sezione è un mockup demo. Nella versione finale qui potrai {currentTab === 'messaggi' ? 'chattare con la tua crew' : 'gestire le tue preferenze di viaggio'}.
+                Questa sezione è un mockup demo. Nella versione finale qui potrai gestire le tue preferenze di viaggio.
               </p>
               <button 
                 type="button" 
@@ -151,6 +154,8 @@ function App() {
           <JoinRequestModal
             ride={selectedRide}
             onClose={() => setSelectedRide(null)}
+            onSubmitRequest={(newReq) => setRequests(prev => [newReq, ...prev])}
+            onGoToMessages={() => setCurrentTab('messaggi')}
           />
         )}
       </div>

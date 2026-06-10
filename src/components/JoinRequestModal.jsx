@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export default function JoinRequestModal({ ride, onClose }) {
+export default function JoinRequestModal({ ride, onClose, onSubmitRequest, onGoToMessages }) {
   const [form, setForm] = useState({
     nickname: '',
     departureCity: '',
@@ -39,6 +39,17 @@ export default function JoinRequestModal({ ride, onClose }) {
     setIsSuccess(false);
     // Simulate API call and transition
     setIsSuccess(true);
+
+    if (onSubmitRequest) {
+      onSubmitRequest({
+        route: `${ride.from} → ${ride.to}`,
+        departure: form.departureCity,
+        nickname: form.nickname,
+        passengers: form.passengers,
+        message: form.message,
+        status: 'pending'
+      });
+    }
   };
 
   if (!ride) return null;
@@ -193,9 +204,25 @@ export default function JoinRequestModal({ ride, onClose }) {
               </p>
             </div>
 
-            <button type="button" className="wao-primary-button wao-display" onClick={onClose}>
-              Torna alla bacheca
-            </button>
+            <div className="success-actions" style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+              <button 
+                type="button" 
+                className="wao-primary-button wao-display" 
+                onClick={() => {
+                  onClose();
+                  if (onGoToMessages) onGoToMessages();
+                }}
+              >
+                Vai ai messaggi
+              </button>
+              <button 
+                type="button" 
+                className="wao-secondary-button wao-display" 
+                onClick={onClose}
+              >
+                Torna alla bacheca
+              </button>
+            </div>
           </div>
         )}
       </div>
