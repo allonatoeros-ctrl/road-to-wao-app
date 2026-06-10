@@ -18,11 +18,63 @@ const DEFAULT_PROFILE = {
   status: 'Sto cercando passaggio'
 };
 
+const INITIAL_RIDES = [
+  {
+    id: 'ride-1',
+    driver: 'CosmicDriver',
+    departureCity: 'Milano',
+    destination: 'WAO',
+    departureDate: '14 Agosto',
+    travelTime: 'mattina',
+    tripType: 'solo andata',
+    seatsTotal: 4,
+    seatsAvailable: 2,
+    luggageCapacity: 'medio',
+    luggageDetails: 'Zaino e tenda',
+    stops: 'Bologna',
+    status: 'open',
+    telegramUrl: '#telegram-demo'
+  },
+  {
+    id: 'ride-2',
+    driver: 'AstroRider',
+    departureCity: 'Torino',
+    destination: 'WAO',
+    departureDate: '13 Agosto',
+    travelTime: 'pomeriggio',
+    tripType: 'andata e ritorno',
+    seatsTotal: 3,
+    seatsAvailable: 0,
+    luggageCapacity: 'poco',
+    luggageDetails: 'Solo zaino leggero',
+    stops: '',
+    status: 'full',
+    telegramUrl: '#telegram-demo'
+  },
+  {
+    id: 'ride-3',
+    driver: 'SolarWave',
+    departureCity: 'Bologna',
+    destination: 'WAO',
+    departureDate: '14 Agosto',
+    travelTime: 'sera',
+    tripType: 'solo andata',
+    seatsTotal: 3,
+    seatsAvailable: 3,
+    luggageCapacity: 'tanto',
+    luggageDetails: 'Tenda, sacchi a pelo, attrezzatura',
+    stops: 'Firenze',
+    status: 'open',
+    telegramUrl: '#telegram-demo'
+  }
+];
+
 function App() {
   const [currentTab, setCurrentTab] = useState('casa');
   const [selectedRide, setSelectedRide] = useState(null);
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [requests, setRequests] = useState([]);
+  const [rides, setRides] = useState(INITIAL_RIDES);
 
   const [userProfile, setUserProfile] = useState(() => {
     const saved = localStorage.getItem('wao_profile');
@@ -147,6 +199,7 @@ function App() {
 
         {currentTab === 'bacheca' && (
           <RoadBoard 
+            rides={rides}
             onJoinRide={setSelectedRide} 
             onOfferRide={() => setShowOfferModal(true)} 
           />
@@ -238,6 +291,26 @@ function App() {
                 createdAt: newOffer.createdAt || new Date().toISOString()
               };
               setRequests(prev => [offerWithId, ...prev]);
+
+              const seatsFromSpots = parseInt(newOffer.spots.charAt(0)) || 2;
+              const newRide = {
+                id: `ride-${Date.now()}`,
+                driver: newOffer.nickname,
+                departureCity: newOffer.departure,
+                destination: 'WAO',
+                departureDate: newOffer.date,
+                travelTime: newOffer.travelTime,
+                tripType: newOffer.tripType,
+                seatsTotal: seatsFromSpots,
+                seatsAvailable: seatsFromSpots,
+                luggageCapacity: newOffer.luggageCapacity,
+                luggageDetails: newOffer.luggageDetails,
+                stops: newOffer.stops,
+                status: 'open',
+                telegramUrl: '#telegram-demo'
+              };
+              setRides(prev => [newRide, ...prev]);
+
               handleUpdateProfile({
                 nickname: newOffer.nickname,
                 departureCity: newOffer.departure
