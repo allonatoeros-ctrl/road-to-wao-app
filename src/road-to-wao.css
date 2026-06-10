@@ -24,15 +24,12 @@
 
 /* Cosmic App Shell styles */
 .phone-frame {
-  width: 390px;
-  height: 844px;
+  width: 100vw;
+  min-height: 100dvh;
   background-color: #05050a;
-  border: 12px solid #1a1a2e;
-  border-radius: 48px;
-  box-shadow:
-    0 25px 50px -12px rgba(0, 0, 0, 0.8),
-    0 0 50px rgba(255, 106, 0, 0.18),
-    0 0 30px rgba(177, 43, 255, 0.12);
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
   position: relative;
   overflow: hidden;
   display: flex;
@@ -41,15 +38,7 @@
 
 /* Simula il notch o la Dynamic Island in alto */
 .phone-island {
-  position: absolute;
-  top: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 110px;
-  height: 30px;
-  background-color: #000;
-  border-radius: 20px;
-  z-index: 100;
+  display: none;
 }
 
 .phone-screen {
@@ -63,17 +52,7 @@
 
 /* Status Bar mockup */
 .phone-status-bar {
-  height: 40px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 14px 24px 0 24px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-soft);
-  z-index: 90;
-  pointer-events: none;
-  opacity: 0.85;
+  display: none;
 }
 
 .status-bar-icons {
@@ -130,9 +109,11 @@
     opacity: 0.4;
     transform: scale(1);
   }
+
   50% {
     opacity: 0.8;
   }
+
   100% {
     opacity: 0.4;
     transform: scale(1.04);
@@ -165,6 +146,7 @@
   0% {
     transform: translateY(0);
   }
+
   100% {
     transform: translateY(4px);
   }
@@ -186,6 +168,7 @@
     transform: scale(0.92);
     opacity: 0.6;
   }
+
   100% {
     transform: scale(1.08);
     opacity: 0.95;
@@ -231,6 +214,7 @@
   0% {
     transform: rotate(0deg);
   }
+
   100% {
     transform: rotate(360deg);
   }
@@ -547,37 +531,146 @@
 
 /* Home Indicator mockup per iOS */
 .ios-indicator {
-  position: absolute;
-  bottom: 5px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 110px;
-  height: 4px;
-  background-color: rgba(255, 255, 255, 0.22);
-  border-radius: 10px;
-  z-index: 110;
-  pointer-events: none;
+  display: none;
 }
 
-/* Responsive per schermi mobile reali: nascondi il guscio del telefono */
-@media (max-width: 480px) {
+/* Mobile overrides (up to 767px) */
+@media (max-width: 767px) {
   body {
+    display: block;
+    min-height: 100dvh;
     background-color: var(--night-black);
   }
 
+  #root {
+    display: block;
+    min-height: 100dvh;
+  }
+
+  .app-content {
+    padding: calc(16px + env(safe-area-inset-top)) 16px calc(96px + env(safe-area-inset-bottom)) 16px;
+    gap: 8px;
+  }
+
+  .solar-background-container {
+    height: 520px;
+  }
+
+  .wao-bg-main {
+    object-position: center 82%;
+  }
+
+  .wao-starfield-overlay {
+    object-position: center 82%;
+  }
+
+  .hero-section {
+    margin-top: 4px;
+    margin-bottom: 2px;
+  }
+
+  .wao-mandala-container {
+    width: 108px;
+    height: 108px;
+    margin: 8px auto;
+  }
+
+  .hero-title {
+    font-size: 23px;
+  }
+
+  .hero-title-sub {
+    font-size: 15px;
+  }
+
+  .hero-subtitle-bottom {
+    font-size: 11px;
+    margin-top: 4px;
+  }
+
+  .wao-card {
+    padding: 8px 12px;
+    gap: 4px;
+  }
+
+  .card-desc {
+    font-size: 10.5px;
+  }
+
+  .wao-primary-button {
+    padding: 10px 18px;
+    font-size: 12.5px;
+  }
+
+  .wao-secondary-button {
+    padding: 9px 18px;
+    font-size: 12.5px;
+  }
+
+  .info-section {
+    margin-top: 0;
+  }
+
+  .disclaimer-card {
+    padding: 6px 10px;
+  }
+
+  .disclaimer-text {
+    font-size: 9px;
+  }
+}
+
+/* Tablet & Desktop mockup shell styles (768px and up) */
+@media (min-width: 768px) {
   .phone-frame {
-    width: 100vw;
-    height: 100vh;
-    border: none;
-    border-radius: 0;
-    box-shadow: none;
+    width: 390px;
+    height: 844px;
+    border: 12px solid #1a1a2e;
+    border-radius: 48px;
+    box-shadow:
+      0 25px 50px -12px rgba(0, 0, 0, 0.8),
+      0 0 50px rgba(255, 106, 0, 0.18),
+      0 0 30px rgba(177, 43, 255, 0.12);
   }
 
   .phone-island {
-    display: none;
+    display: block;
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 110px;
+    height: 30px;
+    background-color: #000;
+    border-radius: 20px;
+    z-index: 100;
   }
 
   .phone-status-bar {
-    padding-top: 14px;
+    display: flex;
+    height: 40px;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 24px 0 24px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-soft);
+    z-index: 90;
+    pointer-events: none;
+    opacity: 0.85;
+  }
+
+  .ios-indicator {
+    display: block;
+    position: absolute;
+    bottom: 5px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 110px;
+    height: 4px;
+    background-color: rgba(255, 255, 255, 0.22);
+    border-radius: 10px;
+    z-index: 110;
+    pointer-events: none;
   }
 }
