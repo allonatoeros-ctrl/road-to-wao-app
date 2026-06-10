@@ -6,6 +6,7 @@ import RoadBoard from './components/RoadBoard';
 import JoinRequestModal from './components/JoinRequestModal';
 import MessagesPanel from './components/MessagesPanel';
 import ProfilePanel from './components/ProfilePanel';
+import AdminPanel from './components/AdminPanel';
 import './road-to-wao.css';
 
 function App() {
@@ -114,6 +115,7 @@ function App() {
             <MessagesPanel 
               requests={requests} 
               onFindRide={() => setCurrentTab('bacheca')} 
+              onOpenControlRoom={() => setCurrentTab('control-room')}
             />
           </div>
         )}
@@ -123,6 +125,26 @@ function App() {
             <ProfilePanel 
               requests={requests} 
               onNavigateToBacheca={() => setCurrentTab('bacheca')} 
+              onOpenControlRoom={() => setCurrentTab('control-room')}
+            />
+          </div>
+        )}
+
+        {currentTab === 'control-room' && (
+          <div className="app-content">
+            <AdminPanel
+              requests={requests}
+              onUpdateStatus={(index, newStatus) => {
+                setRequests(prev => {
+                  const updated = [...prev];
+                  updated[index] = {
+                    ...updated[index],
+                    status: newStatus
+                  };
+                  return updated;
+                });
+              }}
+              onClose={() => setCurrentTab('messaggi')}
             />
           </div>
         )}

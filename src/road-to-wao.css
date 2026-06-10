@@ -1487,6 +1487,39 @@
   border: 1px solid rgba(255, 197, 71, 0.22);
 }
 
+/* Card and Badge statuses for Control Room / Messages */
+.ride-card.card-approved {
+  border-color: rgba(42, 242, 224, 0.35);
+  box-shadow: 0 8px 25px rgba(42, 242, 224, 0.06), var(--shadow-card);
+}
+.ride-card.card-approved .ride-card-glow-approved {
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 100px;
+  height: 100px;
+  background: radial-gradient(circle, rgba(42, 242, 224, 0.15) 0%, transparent 70%);
+  z-index: -1;
+  pointer-events: none;
+}
+
+.ride-card.card-rejected {
+  border-color: rgba(255, 106, 0, 0.2);
+  opacity: 0.85;
+}
+
+.badge-approved {
+  background: rgba(42, 242, 224, 0.12);
+  color: var(--turquoise);
+  border: 1px solid rgba(42, 242, 224, 0.25);
+}
+
+.badge-rejected {
+  background: rgba(255, 106, 0, 0.08);
+  color: var(--text-soft);
+  border: 1px solid rgba(255, 106, 0, 0.2);
+}
+
 /* --- PROFILO VIAGGIO STYLES --- */
 .profile-avatar-orb {
   width: 44px;

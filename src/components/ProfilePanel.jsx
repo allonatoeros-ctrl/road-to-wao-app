@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-export default function ProfilePanel({ requests, onNavigateToBacheca }) {
+export default function ProfilePanel({ requests, onNavigateToBacheca, onOpenControlRoom }) {
   // Local profile state, initialized from localStorage or defaults
   const [profile, setProfile] = useState(() => {
     const saved = localStorage.getItem('wao_profile');
@@ -45,7 +45,29 @@ export default function ProfilePanel({ requests, onNavigateToBacheca }) {
   };
 
   const latestRequest = requests && requests[0];
-  const pendingRequestsCount = requests ? requests.filter(r => r.status === 'pending').length : 0;
+  const pendingRequestsCount = requests ? requests.filter(r => !r.status || r.status === 'pending').length : 0;
+
+  let profileStatusText = 'Nessuna';
+  let profileStatusColor = 'var(--text-soft)';
+  let crewStatusText = 'Non conf.';
+  let crewStatusColor = 'var(--text-soft)';
+
+  if (latestRequest) {
+    if (latestRequest.status === 'approved') {
+      profileStatusText = 'Approvata';
+      profileStatusColor = 'var(--turquoise)';
+      crewStatusText = 'Sbloccata';
+      crewStatusColor = 'var(--turquoise)';
+    } else if (latestRequest.status === 'rejected') {
+      profileStatusText = 'Rifiutata';
+      profileStatusColor = 'var(--solar-orange)';
+      crewStatusText = 'Rifiutata';
+      crewStatusColor = 'var(--solar-orange)';
+    } else {
+      profileStatusText = 'In attesa';
+      profileStatusColor = 'var(--amber-gold)';
+    }
+  }
 
   return (
     <div className="profile-panel-content" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
@@ -107,8 +129,16 @@ export default function ProfilePanel({ requests, onNavigateToBacheca }) {
               </div>
             </div>
 
-            {/* Modifica CTA */}
-            <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end' }}>
+            {/* Modifica CTA & Control Room */}
+            <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button
+                type="button"
+                className="wao-secondary-button wao-display"
+                onClick={onOpenControlRoom}
+                style={{ padding: '6px 12px', fontSize: '10.5px', width: 'auto', background: 'linear-gradient(135deg, rgba(255, 106, 0, 0.4), rgba(255, 197, 71, 0.2))', borderColor: 'rgba(255, 197, 71, 0.3)' }}
+              >
+                ⚙️ Control Room demo
+              </button>
               <button
                 type="button"
                 className="wao-secondary-button wao-display"
@@ -203,17 +233,19 @@ export default function ProfilePanel({ requests, onNavigateToBacheca }) {
       {/* Mini Stats */}
       <div className="profile-stats-grid">
         <div className="profile-stat-card">
-          <span className="stat-value">{pendingRequestsCount}</span>
+          <span className="stat-value">{requests.length}</span>
           <span className="stat-label">Richieste inviate</span>
         </div>
         <div className="profile-stat-card">
-          <span className="stat-value" style={{ fontSize: '11px', color: pendingRequestsCount > 0 ? 'var(--amber-gold)' : 'var(--text-soft)' }}>
-            {pendingRequestsCount > 0 ? 'In attesa' : 'Nessuna'}
+          <span className="stat-value" style={{ fontSize: '11px', color: profileStatusColor }}>
+            {profileStatusText}
           </span>
           <span className="stat-label">Stato</span>
         </div>
         <div className="profile-stat-card">
-          <span className="stat-value" style={{ fontSize: '10px' }}>Non conf.</span>
+          <span className="stat-value" style={{ fontSize: '11px', color: crewStatusColor }}>
+            {crewStatusText}
+          </span>
           <span className="stat-label">Crew</span>
         </div>
       </div>
@@ -224,27 +256,45 @@ export default function ProfilePanel({ requests, onNavigateToBacheca }) {
           Richiesta di viaggio
         </h3>
 
-        {latestRequest ? (
-          <div className="ride-card card-open" style={{ padding: '14px', borderLeft: '3px solid var(--solar-orange)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span className="wao-display" style={{ fontSize: '10px', color: 'var(--solar-orange)', fontWeight: 'bold' }}>
-                Ultima richiesta
-              </span>
-              <span className="ride-badge badge-open" style={{ fontSize: '8px', padding: '2px 6px' }}>
-                In attesa
-              </span>
-            </div>
+        {latestRequest ? (() => {
+          const isApproved = latestRequest.status === 'approved';
+          const isRejected = latestRequest.status === 'rejected';
+          
+          let borderLeftColor = 'var(--solar-orange)';
+          let badgeText = 'In attesa';
+          let badgeClass = 'badge-open';
+          if (isApproved) {
+            borderLeftColor = 'var(--turquoise)';
+            badgeText = 'Approvata';
+            badgeClass = 'badge-approved';
+          } else if (isRejected) {
+            borderLeftColor = 'var(--text-muted)';
+            badgeText = 'Non approvata';
+            badgeClass = 'badge-rejected';
+          }
 
-            <div className="ride-route wao-display" style={{ fontSize: '14px', margin: '6px 0 4px 0', textTransform: 'none' }}>
-              {latestRequest.route}
-            </div>
+          return (
+            <div className="ride-card card-open" style={{ padding: '14px', borderLeft: `3px solid ${borderLeftColor}` }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span className="wao-display" style={{ fontSize: '10px', color: borderLeftColor, fontWeight: 'bold' }}>
+                  Ultima richiesta
+                </span>
+                <span className={`ride-badge ${badgeClass}`} style={{ fontSize: '8px', padding: '2px 6px' }}>
+                  {badgeText}
+                </span>
+              </div>
 
-            <div style={{ fontSize: '11.5px', color: 'var(--text-soft)', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-              <div>Partenza da: <strong>{latestRequest.departure}</strong></div>
-              <div>Presentato come: <strong>{latestRequest.nickname}</strong></div>
+              <div className="ride-route wao-display" style={{ fontSize: '14px', margin: '6px 0 4px 0', textTransform: 'none' }}>
+                {latestRequest.route}
+              </div>
+
+              <div style={{ fontSize: '11.5px', color: 'var(--text-soft)', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                <div>Partenza da: <strong>{latestRequest.departure}</strong></div>
+                <div>Presentato come: <strong>{latestRequest.nickname}</strong></div>
+              </div>
             </div>
-          </div>
-        ) : (
+          );
+        })() : (
           <div className="placeholder-card" style={{ padding: '18px', gap: '8px' }}>
             <p className="placeholder-text" style={{ fontSize: '12px', margin: 0 }}>
               Ancora nessuna richiesta. Vai in Bacheca e chiedi di unirti a una crew.
