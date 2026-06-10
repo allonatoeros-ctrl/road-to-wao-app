@@ -41,8 +41,9 @@ export default function ProfilePanel({ requests, userProfile, onUpdateProfile, o
     return dateB - dateA;
   });
 
-  const latestRequest = sortedRequests[0];
-  const recentActivities = sortedRequests.slice(0, 3);
+  const nonArchivedRequests = sortedRequests.filter(r => !r.archived);
+  const latestRequest = nonArchivedRequests[0];
+  const recentActivities = nonArchivedRequests.slice(0, 3);
 
   // Compute status counts
   const totalCount = requests.length;
@@ -315,7 +316,7 @@ export default function ProfilePanel({ requests, userProfile, onUpdateProfile, o
         ) : (
           <div className="placeholder-card" style={{ padding: '18px', textAlign: 'center' }}>
             <p className="placeholder-text" style={{ fontSize: '12px', margin: 0 }}>
-              Nessuna attività registrata.
+              {requests.length > 0 ? "Nessuna attività attiva al momento." : "Nessuna attività registrata."}
             </p>
           </div>
         )}
@@ -381,7 +382,7 @@ export default function ProfilePanel({ requests, userProfile, onUpdateProfile, o
         ) : (
           <div className="placeholder-card" style={{ padding: '18px', textAlign: 'center' }}>
             <p className="placeholder-text" style={{ fontSize: '11px', margin: 0 }}>
-              Nessuna attività nello storico.
+              {requests.length > 0 ? "Nessuna attività attiva al momento." : "Nessuna attività nello storico."}
             </p>
           </div>
         )}

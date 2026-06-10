@@ -158,6 +158,9 @@ function App() {
               requests={requests} 
               onFindRide={() => setCurrentTab('bacheca')} 
               onOpenControlRoom={() => setCurrentTab('control-room')}
+              onArchiveRequest={(id) => {
+                setRequests(prev => prev.map(r => r.id === id ? { ...r, archived: true } : r));
+              }}
             />
           </div>
         )}
