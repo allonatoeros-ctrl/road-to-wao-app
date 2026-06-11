@@ -1,5 +1,12 @@
 import { test, expect } from '@playwright/test';
 
+async function confirmAge(page) {
+  const checkbox = page.locator('input[name="isOfAge"]');
+  await checkbox.scrollIntoViewIfNeeded();
+  const label = page.locator('label.checkbox-container', { has: checkbox });
+  await label.click();
+}
+
 test('Road to WAO - Private Dry-Run Simulation (3 Users and Admin)', async ({ page }) => {
   // -------------------------------------------------------------
   // Role 1: Luca driver
@@ -27,12 +34,8 @@ test('Road to WAO - Private Dry-Run Simulation (3 Users and Admin)', async ({ pa
     await page.locator('#offer-luggageDetails').fill('leggero');
     await page.locator('#offer-message').fill('Offro passaggio da Milano, auto spaziosa e tranquilla.');
     
-    // Check the age confirmation checkbox programmatically
-    await page.locator('input[name="isOfAge"]').evaluate((el) => {
-      el.checked = true;
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-    });
+    // Check the age confirmation checkbox
+    await confirmAge(page);
 
     // Submit Offer
     await page.getByRole('button', { name: 'Pubblica Offerta' }).click();
@@ -84,12 +87,8 @@ test('Road to WAO - Private Dry-Run Simulation (3 Users and Admin)', async ({ pa
     await page.locator('#luggageDetails').fill('zaino');
     await page.locator('#message').fill('Cerco passaggio, sono flessibile');
     
-    // Check the age confirmation checkbox programmatically
-    await page.locator('input[name="isOfAge"]').evaluate((el) => {
-      el.checked = true;
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-    });
+    // Check the age confirmation checkbox
+    await confirmAge(page);
 
     // Submit Request
     await page.getByRole('button', { name: 'Invia richiesta' }).click();
@@ -175,12 +174,8 @@ test('Road to WAO - Private Dry-Run Simulation (3 Users and Admin)', async ({ pa
     await page.locator('#luggageDetails').fill('tenda');
     await page.locator('#message').fill('Cerco passaggio o crew compatibile');
 
-    // Check age confirmation programmatically
-    await page.locator('input[name="isOfAge"]').evaluate((el) => {
-      el.checked = true;
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-    });
+    // Check age confirmation
+    await confirmAge(page);
 
     // Submit general request
     await page.getByRole('button', { name: 'Invia richiesta' }).click();
