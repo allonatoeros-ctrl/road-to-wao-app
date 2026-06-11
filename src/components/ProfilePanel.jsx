@@ -5,7 +5,8 @@ import {
   signOut, 
   getCurrentSession, 
   getCurrentProfile, 
-  upsertProfileLite 
+  upsertProfileLite,
+  resetPasswordForEmail
 } from '../services/roadToWaoDb';
 
 // Stable key helper function
@@ -32,6 +33,7 @@ export default function ProfilePanel({
   // Auth Form State
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [authMode, setAuthMode] = useState('login'); // 'login' | 'signup' | 'reset'
   
   // Feedback Messages
   const [message, setMessage] = useState({ type: '', text: '' }); // type: 'success' | 'error'
@@ -82,8 +84,41 @@ export default function ProfilePanel({
     initAuth();
   }, []);
 
+  const switchMode = (mode) => {
+    setAuthMode(mode);
+    setMessage({ type: '', text: '' });
+    setPassword('');
+  };
+
+  const handleAuthError = (error) => {
+    if (!error) return { type: '', text: '' };
+    const msg = error.message?.toLowerCase() || '';
+    if (msg.includes('invalid email') || msg.includes('email format') || msg.includes('unable to validate email') || msg.includes('email is invalid') || msg.includes('bad email')) {
+      return {
+        type: 'error',
+        text: (
+          <span>
+            Email non valida. Usa una email reale, es.{' '}
+            <a href="mailto:nome@email.com" style={{ color: 'inherit', textDecoration: 'underline' }}>
+              nome@email.com
+            </a>
+          </span>
+        )
+      };
+    }
+    if (
+      msg.includes('invalid credentials') || 
+      msg.includes('invalid login credentials') || 
+      msg.includes('credentials are invalid') || 
+      msg.includes('credentials do not match')
+    ) {
+      return { type: 'error', text: 'Email o password non corretti.' };
+    }
+    return { type: 'error', text: `Errore: ${error.message}` };
+  };
+
   const handleSignIn = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (!email || !password) {
       setMessage({ type: 'error', text: 'Inserisci email e password.' });
       return;
@@ -93,7 +128,7 @@ export default function ProfilePanel({
     
     const { data, error } = await signInWithEmail(email, password);
     if (error) {
-      setMessage({ type: 'error', text: `Errore: ${error.message}` });
+      setMessage(handleAuthError(error));
       setAuthLoading(false);
       return;
     }
@@ -133,7 +168,7 @@ export default function ProfilePanel({
   };
 
   const handleSignUp = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (!email || !password) {
       setMessage({ type: 'error', text: 'Inserisci email e password.' });
       return;
@@ -143,7 +178,7 @@ export default function ProfilePanel({
     
     const { data, error } = await signUpWithEmail(email, password);
     if (error) {
-      setMessage({ type: 'error', text: `Errore: ${error.message}` });
+      setMessage(handleAuthError(error));
       setAuthLoading(false);
       return;
     }
@@ -160,9 +195,30 @@ export default function ProfilePanel({
         telegram_username: '',
         instagram_username: ''
       });
-      setMessage({ type: 'success', text: 'Profilo creato con successo! Completa i dati qui sotto.' });
+      setMessage({ type: 'success', text: 'Account creato. Ora completa il tuo Profilo Viaggio.' });
     } else {
-      setMessage({ type: 'success', text: 'Registrazione effettuata! Controlla la tua email per confermare l\'account.' });
+      setMessage({ type: 'success', text: 'Account creato. Ora completa il tuo Profilo Viaggio.' });
+    }
+    setAuthLoading(false);
+  };
+
+  const handleResetPassword = async (e) => {
+    if (e) e.preventDefault();
+    if (!email) {
+      setMessage({ type: 'error', text: 'Inserisci l\'email.' });
+      return;
+    }
+    setAuthLoading(true);
+    setMessage({ type: '', text: '' });
+
+    const { data, error } = await resetPasswordForEmail(email);
+    if (error) {
+      setMessage(handleAuthError(error));
+    } else {
+      setMessage({
+        type: 'success',
+        text: 'Se l’email è registrata, riceverai un link per reimpostare la password.'
+      });
     }
     setAuthLoading(false);
   };
@@ -222,6 +278,7 @@ export default function ProfilePanel({
       setSupabaseProfile(null);
       setEmail('');
       setPassword('');
+      setAuthMode('login');
       setProfileForm({
         nickname: '',
         departure_city: '',
@@ -426,13 +483,26 @@ export default function ProfilePanel({
 
         {!authLoading && !session && (
           /* Auth Form when not logged in */
-          <form style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <form 
+            onSubmit={
+              authMode === 'login' 
+                ? handleSignIn 
+                : authMode === 'signup' 
+                  ? handleSignUp 
+                  : handleResetPassword
+            } 
+            style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}
+          >
             <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '8px' }}>
               <h3 className="wao-display" style={{ fontSize: '14px', margin: 0, color: 'var(--amber-gold)' }}>
-                Accedi o Registrati
+                {authMode === 'login' && 'Accedi'}
+                {authMode === 'signup' && 'Crea account'}
+                {authMode === 'reset' && 'Recupera password'}
               </h3>
               <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-                Identificati per proporre un viaggio o richiedere un passaggio.
+                {authMode === 'login' && 'Identificati per proporre un viaggio o richiedere un passaggio.'}
+                {authMode === 'signup' && 'Registrati per proporre un viaggio o richiedere un passaggio.'}
+                {authMode === 'reset' && 'Ricevi un link per reimpostare la tua password.'}
               </p>
             </div>
 
@@ -450,19 +520,21 @@ export default function ProfilePanel({
               />
             </div>
 
-            <div className="form-group">
-              <label className="form-label" htmlFor="auth-password" style={{ fontSize: '9px' }}>Password</label>
-              <input
-                type="password"
-                id="auth-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="form-input"
-                style={{ padding: '8px 10px', fontSize: '12px' }}
-                placeholder="••••••••"
-                required
-              />
-            </div>
+            {authMode !== 'reset' && (
+              <div className="form-group">
+                <label className="form-label" htmlFor="auth-password" style={{ fontSize: '9px' }}>Password</label>
+                <input
+                  type="password"
+                  id="auth-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="form-input"
+                  style={{ padding: '8px 10px', fontSize: '12px' }}
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+            )}
 
             {message.text && (
               <div style={{
@@ -477,23 +549,96 @@ export default function ProfilePanel({
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
               <button
-                type="button"
+                type="submit"
                 className="wao-primary-button wao-display"
-                onClick={handleSignIn}
-                style={{ padding: '8px 14px', fontSize: '11px', flex: 1 }}
+                style={{ padding: '8px 14px', fontSize: '11px', width: '100%' }}
+                disabled={authLoading}
               >
-                Accedi
+                {authMode === 'login' && 'Accedi'}
+                {authMode === 'signup' && 'Crea account'}
+                {authMode === 'reset' && 'Invia email di recupero'}
               </button>
-              <button
-                type="button"
-                className="wao-secondary-button wao-display"
-                onClick={handleSignUp}
-                style={{ padding: '8px 14px', fontSize: '11px', flex: 1, borderColor: 'var(--amber-gold)', color: 'var(--amber-gold)' }}
-              >
-                Crea profilo
-              </button>
+
+              <div style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: '8px', 
+                alignItems: 'center', 
+                marginTop: '6px'
+              }}>
+                {authMode === 'login' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => switchMode('signup')}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--amber-gold)',
+                        cursor: 'pointer',
+                        textDecoration: 'underline',
+                        fontSize: '11px',
+                        padding: 0
+                      }}
+                    >
+                      Crea un nuovo profilo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => switchMode('reset')}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--text-muted)',
+                        cursor: 'pointer',
+                        textDecoration: 'underline',
+                        fontSize: '11px',
+                        padding: 0
+                      }}
+                    >
+                      Password dimenticata?
+                    </button>
+                  </>
+                )}
+
+                {authMode === 'signup' && (
+                  <button
+                    type="button"
+                    onClick={() => switchMode('login')}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--amber-gold)',
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      fontSize: '11px',
+                      padding: 0
+                    }}
+                  >
+                    Hai già un profilo? Accedi
+                  </button>
+                )}
+
+                {authMode === 'reset' && (
+                  <button
+                    type="button"
+                    onClick={() => switchMode('login')}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--amber-gold)',
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      fontSize: '11px',
+                      padding: 0
+                    }}
+                  >
+                    Torna ad Accedi
+                  </button>
+                )}
+              </div>
             </div>
           </form>
         )}
