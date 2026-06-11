@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import CosmicAppShell from './components/CosmicAppShell';
-import { fetchRides, createRide, getCurrentUser, getCurrentProfile } from './services/roadToWaoDb';
+import { fetchRides, createRide, getCurrentUser, getCurrentProfile, createJoinRequest } from './services/roadToWaoDb';
 import { supabase } from './services/supabaseClient';
 import SolarHeroBackground from './components/SolarHeroBackground';
 import BottomNav from './components/BottomNav';
@@ -87,6 +87,12 @@ function normalizeDepartureDate(dateStr) {
   }
   
   return null;
+}
+
+function isUuid(id) {
+  if (typeof id !== 'string') return false;
+  const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+  return uuidRegex.test(id);
 }
 
 function App() {
@@ -218,104 +224,210 @@ function App() {
     setJoinModalMode(null);
   };
 
-  const handleSubmitJoinRequest = (formData) => {
+  const handleSubmitJoinRequest = async (formData) => {
     const newId = `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const createdAt = new Date().toISOString();
 
-    if (joinModalMode === 'ride') {
-      const newJoin = {
-        id: newId,
+    const runLocalFlow = () => {
+      if (joinModalMode === 'ride') {
+        const newJoin = {
+          id: newId,
+          rideId: selectedRideForJoin.id,
+          rideSummary: `${selectedRideForJoin.departureCity}/${selectedRideForJoin.departureDate}/${selectedRideForJoin.travelTime}/${selectedRideForJoin.driver}`,
+          type: 'join',
+          status: 'pending',
+          archived: false,
+          nickname: formData.nickname,
+          departureCity: formData.departureCity,
+          tripType: formData.tripType,
+          travelTime: formData.travelTime,
+          peopleCount: formData.peopleCount || formData.passengers,
+          passengers: formData.passengers || formData.peopleCount,
+          luggageNeed: formData.luggageNeed,
+          luggageDetails: formData.luggageDetails,
+          nearbyFlexible: formData.nearbyFlexible,
+          message: formData.message,
+          isOfAge: formData.isOfAge,
+          createdAt
+        };
+        setJoinRequests(prev => [newJoin, ...prev]);
+
+        const legacyReq = {
+          id: newId,
+          type: 'join',
+          status: 'pending',
+          archived: false,
+          route: `${selectedRideForJoin.departureCity || selectedRideForJoin.from} → ${selectedRideForJoin.destination || selectedRideForJoin.to || 'WAO'}`,
+          departure: formData.departureCity,
+          departureCity: formData.departureCity,
+          nickname: formData.nickname,
+          passengers: formData.passengers || formData.peopleCount,
+          peopleCount: formData.peopleCount || formData.passengers,
+          tripType: formData.tripType,
+          travelTime: formData.travelTime,
+          luggageNeed: formData.luggageNeed,
+          luggageDetails: formData.luggageDetails,
+          nearbyFlexible: formData.nearbyFlexible,
+          message: formData.message,
+          isOfAge: formData.isOfAge,
+          rideId: selectedRideForJoin.id,
+          createdAt
+        };
+        setRequests(prev => [legacyReq, ...prev]);
+
+      } else if (joinModalMode === 'general') {
+        const newGeneral = {
+          id: newId,
+          type: 'general',
+          status: 'active',
+          archived: false,
+          nickname: formData.nickname,
+          departureCity: formData.departureCity,
+          tripType: formData.tripType,
+          travelTime: formData.travelTime,
+          peopleCount: formData.peopleCount || formData.passengers,
+          passengers: formData.passengers || formData.peopleCount,
+          luggageNeed: formData.luggageNeed,
+          luggageDetails: formData.luggageDetails,
+          nearbyFlexible: formData.nearbyFlexible,
+          message: formData.message,
+          isOfAge: formData.isOfAge,
+          createdAt
+        };
+        setGeneralRequests(prev => [newGeneral, ...prev]);
+
+        const legacyReq = {
+          id: newId,
+          type: 'join',
+          status: 'pending',
+          archived: false,
+          route: `${formData.departureCity} → WAO (Generale)`,
+          departure: formData.departureCity,
+          departureCity: formData.departureCity,
+          nickname: formData.nickname,
+          passengers: formData.passengers || formData.peopleCount,
+          peopleCount: formData.peopleCount || formData.passengers,
+          tripType: formData.tripType,
+          travelTime: formData.travelTime,
+          luggageNeed: formData.luggageNeed,
+          luggageDetails: formData.luggageDetails,
+          nearbyFlexible: formData.nearbyFlexible,
+          message: formData.message,
+          isOfAge: formData.isOfAge,
+          createdAt
+        };
+        setRequests(prev => [legacyReq, ...prev]);
+      }
+
+      handleUpdateProfile({
+        nickname: formData.nickname,
+        departureCity: formData.departureCity
+      });
+    };
+
+    try {
+      const { data: userData, error: userError } = await getCurrentUser();
+      const user = userData?.user;
+
+      if (userError || !user) {
+        runLocalFlow();
+        return;
+      }
+
+      if (!selectedRideForJoin || !selectedRideForJoin.id || !isUuid(selectedRideForJoin.id)) {
+        runLocalFlow();
+        return;
+      }
+
+      let profileNickname = null;
+      try {
+        const { data: profileData } = await getCurrentProfile();
+        if (profileData && profileData.nickname) {
+          profileNickname = profileData.nickname;
+        }
+      } catch (pErr) {
+        console.error('Error fetching current profile:', pErr);
+      }
+
+      const requesterName = profileNickname || formData.nickname || 'Raver';
+
+      const payload = {
+        ride_id: selectedRideForJoin.id,
         rideId: selectedRideForJoin.id,
+        passengers: parseInt(formData.passengers || formData.peopleCount, 10) || 1,
+        seats_requested: parseInt(formData.passengers || formData.peopleCount, 10) || 1,
+        luggage: formData.luggageNeed || '',
+        luggage_details: formData.luggageDetails || '',
+        luggageNeed: formData.luggageNeed || '',
+        message: formData.message || '',
+        notes: formData.message || ''
+      };
+
+      const { data: supabaseReq, error: createError } = await createJoinRequest(payload);
+
+      if (createError || !supabaseReq) {
+        if (createError) {
+          console.error('Error creating join request in Supabase:', createError);
+        }
+        runLocalFlow();
+        return;
+      }
+
+      const mappedJoin = {
+        id: supabaseReq.id,
+        rideId: supabaseReq.ride_id,
         rideSummary: `${selectedRideForJoin.departureCity}/${selectedRideForJoin.departureDate}/${selectedRideForJoin.travelTime}/${selectedRideForJoin.driver}`,
         type: 'join',
-        status: 'pending',
+        status: supabaseReq.status || 'pending',
         archived: false,
-        nickname: formData.nickname,
+        nickname: requesterName,
         departureCity: formData.departureCity,
         tripType: formData.tripType,
         travelTime: formData.travelTime,
-        peopleCount: formData.peopleCount || formData.passengers,
-        passengers: formData.passengers || formData.peopleCount,
+        peopleCount: supabaseReq.seats_requested || formData.passengers || formData.peopleCount,
+        passengers: supabaseReq.seats_requested || formData.passengers || formData.peopleCount,
         luggageNeed: formData.luggageNeed,
         luggageDetails: formData.luggageDetails,
         nearbyFlexible: formData.nearbyFlexible,
-        message: formData.message,
+        message: supabaseReq.message || formData.message,
         isOfAge: formData.isOfAge,
-        createdAt
+        createdAt: supabaseReq.created_at || new Date().toISOString()
       };
-      setJoinRequests(prev => [newJoin, ...prev]);
 
       const legacyReq = {
-        id: newId,
+        id: supabaseReq.id,
         type: 'join',
-        status: 'pending',
+        status: supabaseReq.status || 'pending',
         archived: false,
         route: `${selectedRideForJoin.departureCity || selectedRideForJoin.from} → ${selectedRideForJoin.destination || selectedRideForJoin.to || 'WAO'}`,
         departure: formData.departureCity,
         departureCity: formData.departureCity,
-        nickname: formData.nickname,
-        passengers: formData.passengers || formData.peopleCount,
-        peopleCount: formData.peopleCount || formData.passengers,
+        nickname: requesterName,
+        passengers: supabaseReq.seats_requested || formData.passengers || formData.peopleCount,
+        peopleCount: supabaseReq.seats_requested || formData.passengers || formData.peopleCount,
         tripType: formData.tripType,
         travelTime: formData.travelTime,
         luggageNeed: formData.luggageNeed,
         luggageDetails: formData.luggageDetails,
         nearbyFlexible: formData.nearbyFlexible,
-        message: formData.message,
+        message: supabaseReq.message || formData.message,
         isOfAge: formData.isOfAge,
-        rideId: selectedRideForJoin.id,
-        createdAt
+        rideId: supabaseReq.ride_id,
+        createdAt: supabaseReq.created_at || new Date().toISOString()
       };
+
+      setJoinRequests(prev => [mappedJoin, ...prev]);
       setRequests(prev => [legacyReq, ...prev]);
 
-    } else if (joinModalMode === 'general') {
-      const newGeneral = {
-        id: newId,
-        type: 'general',
-        status: 'active',
-        archived: false,
-        nickname: formData.nickname,
-        departureCity: formData.departureCity,
-        tripType: formData.tripType,
-        travelTime: formData.travelTime,
-        peopleCount: formData.peopleCount || formData.passengers,
-        passengers: formData.passengers || formData.peopleCount,
-        luggageNeed: formData.luggageNeed,
-        luggageDetails: formData.luggageDetails,
-        nearbyFlexible: formData.nearbyFlexible,
-        message: formData.message,
-        isOfAge: formData.isOfAge,
-        createdAt
-      };
-      setGeneralRequests(prev => [newGeneral, ...prev]);
+      handleUpdateProfile({
+        nickname: requesterName,
+        departureCity: formData.departureCity
+      });
 
-      const legacyReq = {
-        id: newId,
-        type: 'join',
-        status: 'pending',
-        archived: false,
-        route: `${formData.departureCity} → WAO (Generale)`,
-        departure: formData.departureCity,
-        departureCity: formData.departureCity,
-        nickname: formData.nickname,
-        passengers: formData.passengers || formData.peopleCount,
-        peopleCount: formData.peopleCount || formData.passengers,
-        tripType: formData.tripType,
-        travelTime: formData.travelTime,
-        luggageNeed: formData.luggageNeed,
-        luggageDetails: formData.luggageDetails,
-        nearbyFlexible: formData.nearbyFlexible,
-        message: formData.message,
-        isOfAge: formData.isOfAge,
-        createdAt
-      };
-      setRequests(prev => [legacyReq, ...prev]);
+    } catch (e) {
+      console.error('Unexpected error in handleSubmitJoinRequest:', e);
+      runLocalFlow();
     }
-
-    handleUpdateProfile({
-      nickname: formData.nickname,
-      departureCity: formData.departureCity
-    });
   };
 
   // ── Shared AdminPanel props (used by both render paths) ───────
