@@ -240,9 +240,39 @@ export async function createRide(payload) {
     return { data: null, error: new Error('Supabase is not configured') };
   }
   try {
+    const { data: userData, error: userError } = await getCurrentUser();
+    if (userError) {
+      return { data: null, error: userError };
+    }
+    const user = userData?.user;
+    if (!user) {
+      return { data: null, error: new Error('No authenticated user') };
+    }
+
+    const seatsTotal = payload.seats_total;
+    const seatsAvailable = payload.seats_available !== undefined && payload.seats_available !== null
+      ? payload.seats_available
+      : seatsTotal;
+
+    const rideToInsert = {
+      driver_id: user.id,
+      departure_city: payload.departure_city,
+      departure_area: payload.departure_area,
+      to_event: payload.to_event || 'WAO Festival',
+      departure_date: payload.departure_date,
+      return_date: payload.return_date,
+      seats_total: seatsTotal,
+      seats_available: seatsAvailable,
+      departure_time_label: payload.departure_time_label,
+      vibe: payload.vibe,
+      notes: payload.notes,
+      status: 'open',
+      visibility: 'public'
+    };
+
     const { data, error } = await supabase
       .from('rides')
-      .insert([payload])
+      .insert([rideToInsert])
       .select()
       .single();
     return { data, error };
