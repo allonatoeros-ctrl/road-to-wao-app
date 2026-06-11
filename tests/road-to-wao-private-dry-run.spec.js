@@ -49,7 +49,7 @@ test('Road to WAO - Private Dry-Run Simulation (3 Users and Admin)', async ({ pa
 
   await test.step('Luca: Verify ride in Bacheca and check Messages panel', async () => {
     // Verify ride appears in RoadBoard (Bacheca)
-    const rideCard = page.locator('.ride-card', { hasText: 'Milano' }).filter({ hasText: 'Driver: Luca' });
+    const rideCard = page.locator('.ride-card', { hasText: 'Milano' }).filter({ hasText: 'Driver: Luca' }).filter({ hasText: '2 posti liberi' });
     await expect(rideCard).toBeVisible();
     await expect(rideCard.getByText('2 posti liberi')).toBeVisible();
 
@@ -77,7 +77,7 @@ test('Road to WAO - Private Dry-Run Simulation (3 Users and Admin)', async ({ pa
     await bottomNav.getByText('Bacheca').click();
 
     // Find Luca's ride card and click "Chiedi di unirti"
-    const targetRideCard = page.locator('.ride-card', { hasText: 'Milano' }).filter({ hasText: 'Driver: Luca' });
+    const targetRideCard = page.locator('.ride-card', { hasText: 'Milano' }).filter({ hasText: 'Driver: Luca' }).filter({ hasText: '2 posti liberi' });
     await targetRideCard.getByRole('button', { name: 'Chiedi di unirti' }).click();
 
     // Submit join request
@@ -117,7 +117,7 @@ test('Road to WAO - Private Dry-Run Simulation (3 Users and Admin)', async ({ pa
     await expect(page.getByRole('heading', { name: 'Control Room' })).toBeVisible();
 
     // Find Luca/Milano ride and expand it
-    const adminRideRow = page.locator('.cr-ride-header', { hasText: 'Milano' }).filter({ hasText: 'Luca' });
+    const adminRideRow = page.locator('.cr-ride-header', { hasText: 'Milano' }).filter({ hasText: 'Luca' }).filter({ hasText: '14 agosto' });
     await expect(adminRideRow).toBeVisible();
     await adminRideRow.click();
 

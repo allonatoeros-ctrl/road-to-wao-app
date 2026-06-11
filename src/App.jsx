@@ -134,7 +134,11 @@ function App() {
             telegramUrl: null
           }));
 
-          setRides(mappedRides);
+          setRides((previousRides) => {
+            const existingIds = new Set(previousRides.map((ride) => String(ride.id)));
+            const newSupabaseRides = mappedRides.filter((ride) => !existingIds.has(String(ride.id)));
+            return [...newSupabaseRides, ...previousRides];
+          });
           console.log(`loaded Supabase rides count: ${mappedRides.length}`);
         } else {
           console.log('Fallback to local demo rides');
