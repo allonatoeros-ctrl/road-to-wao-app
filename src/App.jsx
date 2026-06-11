@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import CosmicAppShell from './components/CosmicAppShell';
-import { fetchRides, createRide, getCurrentUser, getCurrentProfile, createJoinRequest } from './services/roadToWaoDb';
+import { fetchRides, createRide, getCurrentUser, getCurrentProfile, createJoinRequest, fetchJoinRequests, approveJoinRequest, rejectJoinRequest } from './services/roadToWaoDb';
 import { supabase } from './services/supabaseClient';
 import SolarHeroBackground from './components/SolarHeroBackground';
 import BottomNav from './components/BottomNav';
@@ -179,6 +179,140 @@ function App() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    async function loadSupabaseJoinRequests() {
+      if (!supabase) return;
+      try {
+        const { data: userData } = await getCurrentUser();
+        const user = userData?.user;
+        if (!user) {
+          return;
+        }
+
+        const { data: rawRequests, error } = await fetchJoinRequests();
+        if (error) {
+          console.error('Error fetching join requests from Supabase:', error);
+          return;
+        }
+
+        if (!active) return;
+
+        if (rawRequests && rawRequests.length > 0) {
+          let profileMap = {};
+          try {
+            const { data: profiles } = await supabase
+              .from('profiles')
+              .select('id, nickname');
+            if (profiles) {
+              profiles.forEach(p => {
+                if (p.id && p.nickname) {
+                  profileMap[p.id] = p.nickname;
+                }
+              });
+            }
+          } catch (err) {
+            console.error('Error fetching profiles for join requests:', err);
+          }
+
+          const mappedJoins = rawRequests.map(req => {
+            const ride = rides.find(r => String(r.id) === String(req.ride_id));
+            const requesterName = profileMap[req.requester_id] || `Rider-${req.requester_id.substring(0, 5)}`;
+            
+            let luggageNeed = null;
+            let cleanMessage = req.message || '';
+            if (req.message && req.message.includes('Luggage:')) {
+              const parts = req.message.split('Luggage:');
+              cleanMessage = parts[0].trim();
+              luggageNeed = parts[1].trim();
+            }
+
+            return {
+              id: req.id,
+              rideId: req.ride_id,
+              rideSummary: ride 
+                ? `${ride.departureCity}/${ride.departureDate}/${ride.travelTime}/${ride.driver}`
+                : `Ride-${req.ride_id}`,
+              type: 'join',
+              status: req.status || 'pending',
+              archived: false,
+              nickname: requesterName,
+              departureCity: ride?.departureCity || '',
+              tripType: ride?.tripType || '',
+              travelTime: ride?.travelTime || '',
+              peopleCount: req.seats_requested || 1,
+              passengers: req.seats_requested || 1,
+              luggageNeed: luggageNeed,
+              message: cleanMessage,
+              createdAt: req.created_at || new Date().toISOString()
+            };
+          });
+
+          const mappedLegacyRequests = rawRequests.map(req => {
+            const ride = rides.find(r => String(r.id) === String(req.ride_id));
+            const requesterName = profileMap[req.requester_id] || `Rider-${req.requester_id.substring(0, 5)}`;
+            
+            let luggageNeed = null;
+            let cleanMessage = req.message || '';
+            if (req.message && req.message.includes('Luggage:')) {
+              const parts = req.message.split('Luggage:');
+              cleanMessage = parts[0].trim();
+              luggageNeed = parts[1].trim();
+            }
+
+            return {
+              id: req.id,
+              type: 'join',
+              status: req.status || 'pending',
+              archived: false,
+              route: ride 
+                ? `${ride.departureCity} → ${ride.destination || 'WAO'}`
+                : `Ride → WAO`,
+              departure: ride?.departureCity || '',
+              departureCity: ride?.departureCity || '',
+              nickname: requesterName,
+              passengers: req.seats_requested || 1,
+              peopleCount: req.seats_requested || 1,
+              tripType: ride?.tripType || '',
+              travelTime: ride?.travelTime || '',
+              luggageNeed: luggageNeed,
+              message: cleanMessage,
+              rideId: req.ride_id,
+              createdAt: req.created_at || new Date().toISOString()
+            };
+          });
+
+          setJoinRequests(prev => {
+            const updated = prev.map(r => {
+              const match = mappedJoins.find(m => String(m.id) === String(r.id));
+              return match ? match : r;
+            });
+            const existingIds = new Set(prev.map(r => String(r.id)));
+            const newJoins = mappedJoins.filter(r => !existingIds.has(String(r.id)));
+            return [...newJoins, ...updated];
+          });
+          setRequests(prev => {
+            const updated = prev.map(r => {
+              const match = mappedLegacyRequests.find(m => String(m.id) === String(r.id));
+              return match ? match : r;
+            });
+            const existingIds = new Set(prev.map(r => String(r.id)));
+            const newRequests = mappedLegacyRequests.filter(r => !existingIds.has(String(r.id)));
+            return [...newRequests, ...updated];
+          });
+        }
+      } catch (err) {
+        console.error('Unexpected error in loadSupabaseJoinRequests:', err);
+      }
+    }
+
+    loadSupabaseJoinRequests();
+
+    return () => {
+      active = false;
+    };
+  }, [currentTab, rides]);
 
   const [userProfile, setUserProfile] = useState(() => {
     const saved = localStorage.getItem('wao_profile');
@@ -436,20 +570,58 @@ function App() {
     joinRequests,
     generalRequests,
     requests,
-    onApproveJoin: (joinId, rideId) => {
-      const join = joinRequests.find(r => r.id === joinId);
-      const pax = Number((join && (join.peopleCount || join.passengers)) || 1);
-      setJoinRequests(prev => prev.map(r => r.id === joinId ? { ...r, status: 'approved' } : r));
-      setRides(prev => prev.map(r => {
-        if (r.id !== rideId) return r;
-        const newSeats = Math.max(0, (r.seatsAvailable || 0) - pax);
-        return { ...r, seatsAvailable: newSeats, status: newSeats === 0 ? 'full' : r.status };
-      }));
-      setRequests(prev => prev.map(r => r.id === joinId ? { ...r, status: 'approved' } : r));
+    onApproveJoin: async (joinId, rideId) => {
+      if (isUuid(joinId)) {
+        try {
+          const { error } = await approveJoinRequest(joinId);
+          if (error) {
+            console.error('Error approving join request in Supabase:', error);
+            return;
+          }
+          setJoinRequests(prev => prev.map(r => r.id === joinId ? { ...r, status: 'approved' } : r));
+          setRequests(prev => prev.map(r => r.id === joinId ? { ...r, status: 'approved' } : r));
+
+          if (!isUuid(rideId)) {
+            const join = joinRequests.find(r => r.id === joinId);
+            const pax = Number((join && (join.peopleCount || join.passengers)) || 1);
+            setRides(prev => prev.map(r => {
+              if (r.id !== rideId) return r;
+              const newSeats = Math.max(0, (r.seatsAvailable || 0) - pax);
+              return { ...r, seatsAvailable: newSeats, status: newSeats === 0 ? 'full' : r.status };
+            }));
+          }
+        } catch (err) {
+          console.error('Unexpected error during approveJoinRequest:', err);
+        }
+      } else {
+        const join = joinRequests.find(r => r.id === joinId);
+        const pax = Number((join && (join.peopleCount || join.passengers)) || 1);
+        setJoinRequests(prev => prev.map(r => r.id === joinId ? { ...r, status: 'approved' } : r));
+        setRides(prev => prev.map(r => {
+          if (r.id !== rideId) return r;
+          const newSeats = Math.max(0, (r.seatsAvailable || 0) - pax);
+          return { ...r, seatsAvailable: newSeats, status: newSeats === 0 ? 'full' : r.status };
+        }));
+        setRequests(prev => prev.map(r => r.id === joinId ? { ...r, status: 'approved' } : r));
+      }
     },
-    onRejectJoin: (joinId) => {
-      setJoinRequests(prev => prev.map(r => r.id === joinId ? { ...r, status: 'rejected' } : r));
-      setRequests(prev => prev.map(r => r.id === joinId ? { ...r, status: 'rejected' } : r));
+    onRejectJoin: async (joinId) => {
+      if (isUuid(joinId)) {
+        try {
+          const { error } = await rejectJoinRequest(joinId);
+          if (error) {
+            console.error('Error rejecting join request in Supabase:', error);
+            return;
+          }
+          setJoinRequests(prev => prev.map(r => r.id === joinId ? { ...r, status: 'rejected' } : r));
+          setRequests(prev => prev.map(r => r.id === joinId ? { ...r, status: 'rejected' } : r));
+        } catch (err) {
+          console.error('Unexpected error during rejectJoinRequest:', err);
+        }
+      } else {
+        setJoinRequests(prev => prev.map(r => r.id === joinId ? { ...r, status: 'rejected' } : r));
+        setRequests(prev => prev.map(r => r.id === joinId ? { ...r, status: 'rejected' } : r));
+      }
     },
     onArchiveGeneralRequest: (id) => {
       setGeneralRequests(prev => prev.map(r => r.id === id ? { ...r, archived: true } : r));
