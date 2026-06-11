@@ -128,7 +128,29 @@ export default function ProfilePanel({
     
     const { data, error } = await signInWithEmail(email, password);
     if (error) {
-      setMessage(handleAuthError(error));
+      const msg = error.message?.toLowerCase() || '';
+      let text = '';
+      if (
+        msg.includes('email not confirmed') || 
+        msg.includes('confirm your email') || 
+        msg.includes('confirmation required')
+      ) {
+        text = 'Devi confermare la tua email prima di accedere.';
+      } else if (
+        msg.includes('invalid credentials') || 
+        msg.includes('invalid login credentials') || 
+        msg.includes('credentials are invalid') || 
+        msg.includes('credentials do not match') ||
+        msg.includes('invalid email or password') ||
+        msg.includes('user not found') ||
+        msg.includes('cannot find user')
+      ) {
+        text = 'Email o password non corretti.';
+      } else {
+        const defaultErr = handleAuthError(error);
+        text = defaultErr.text;
+      }
+      setMessage({ type: 'error', text });
       setAuthLoading(false);
       return;
     }
@@ -178,7 +200,18 @@ export default function ProfilePanel({
     
     const { data, error } = await signUpWithEmail(email, password);
     if (error) {
-      setMessage(handleAuthError(error));
+      const msg = error.message?.toLowerCase() || '';
+      let text = '';
+      if (msg.includes('email rate limit exceeded') || msg.includes('rate limit')) {
+        text = 'Troppi tentativi di invio email. Aspetta qualche minuto e riprova.';
+      } else if (msg.includes('invalid email') || msg.includes('email format') || msg.includes('unable to validate email') || msg.includes('email is invalid') || msg.includes('bad email')) {
+        text = 'Email non valida. Usa una email reale, es. nome@email.com';
+      } else if (msg.includes('already registered') || msg.includes('user already registered') || msg.includes('email already in use')) {
+        text = 'Questa email ha già un profilo. Prova ad accedere.';
+      } else {
+        text = `Errore di registrazione: ${error.message}`;
+      }
+      setMessage({ type: 'error', text });
       setAuthLoading(false);
       return;
     }
@@ -197,7 +230,10 @@ export default function ProfilePanel({
       });
       setMessage({ type: 'success', text: 'Account creato. Ora completa il tuo Profilo Viaggio.' });
     } else {
-      setMessage({ type: 'success', text: 'Account creato. Ora completa il tuo Profilo Viaggio.' });
+      setMessage({ 
+        type: 'success', 
+        text: 'Account creato. Controlla la tua email e conferma il link, poi torna qui e accedi.' 
+      });
     }
     setAuthLoading(false);
   };
@@ -225,6 +261,10 @@ export default function ProfilePanel({
 
   const handleSaveProfile = async (e) => {
     e.preventDefault();
+    if (!session || !session.user) {
+      setMessage({ type: 'error', text: 'Devi effettuare l\'accesso per salvare il profilo.' });
+      return;
+    }
     if (!profileForm.nickname.trim()) {
       setMessage({ type: 'error', text: 'Il nickname è obbligatorio.' });
       return;
