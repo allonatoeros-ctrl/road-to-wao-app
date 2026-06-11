@@ -309,9 +309,44 @@ export async function createJoinRequest(payload) {
     return { data: null, error: new Error('Supabase is not configured') };
   }
   try {
+    const { data: userData, error: userError } = await getCurrentUser();
+    if (userError) {
+      return { data: null, error: userError };
+    }
+    const user = userData?.user;
+    if (!user) {
+      return { data: null, error: new Error('No authenticated user') };
+    }
+
+    const rideId = payload.ride_id || payload.rideId;
+    if (!rideId) {
+      return { data: null, error: new Error('Missing ride_id in payload') };
+    }
+
+    const seatsRequested = payload.seats_requested !== undefined
+      ? payload.seats_requested
+      : (payload.seats !== undefined
+        ? payload.seats
+        : (payload.passengers !== undefined ? payload.passengers : 1));
+
+    let message = payload.message || payload.notes || '';
+    if (payload.luggage) {
+      message = message ? `${message}\nLuggage: ${payload.luggage}` : `Luggage: ${payload.luggage}`;
+    } else if (payload.luggage_details) {
+      message = message ? `${message}\nLuggage: ${payload.luggage_details}` : `Luggage: ${payload.luggage_details}`;
+    }
+
+    const requestToInsert = {
+      ride_id: rideId,
+      requester_id: user.id,
+      seats_requested: seatsRequested,
+      message: message || null,
+      status: 'pending'
+    };
+
     const { data, error } = await supabase
       .from('join_requests')
-      .insert([payload])
+      .insert([requestToInsert])
       .select()
       .single();
     return { data, error };
