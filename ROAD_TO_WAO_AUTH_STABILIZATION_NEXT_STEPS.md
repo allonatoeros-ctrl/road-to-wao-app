@@ -567,3 +567,34 @@ utente reale → email confermata → login → profilo salvato → partecipazio
 ```
 
 Solo dopo ha senso continuare con nuove schermate, automazioni o miglioramenti di prodotto.
+
+---
+
+## Manual Auth/Profile Test — 2026-06-11
+
+Stato: PASS parziale su demo users.
+
+Validato manualmente:
+
+- login utente demo Luca OK;
+- Profile Lite Luca caricato correttamente;
+- dati profilo Luca visibili: nickname, città, ruolo, Telegram, Instagram;
+- stato viaggio Luca visibile;
+- Crew attiva visibile;
+- login utente demo Sara OK;
+- Profile Lite Sara caricato correttamente;
+- richiesta approved visibile;
+- Crew sbloccata / Telegram crew visibile;
+- logout OK.
+
+Non testato in questo passaggio:
+
+- signup nuova email reale;
+- conferma email da telefono;
+- conferma email da Mac;
+- reset password end-to-end;
+- SMTP custom.
+
+Nota:
+Non sono stati eseguiti test ripetuti di signup/reset per evitare il rate limit Supabase built-in email provider.
+
