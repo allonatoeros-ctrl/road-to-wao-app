@@ -98,6 +98,36 @@ function isUuid(id) {
 function App() {
   const [currentTab, setCurrentTab] = useState('casa');
   const [joinRequests, setJoinRequests] = useState([]);
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const seen = window.localStorage.getItem('road_to_wao_onboarding_seen');
+        return seen !== 'true';
+      }
+    } catch (e) {
+      console.error('Error reading localStorage onboarding state:', e);
+    }
+    return false;
+  });
+
+  const handleCloseOnboarding = () => {
+    try {
+      localStorage.setItem('road_to_wao_onboarding_seen', 'true');
+    } catch (e) {
+      console.error('Error saving localStorage onboarding state:', e);
+    }
+    setShowOnboarding(false);
+  };
+
+  const handleCloseOnboardingAndGoToBoard = () => {
+    try {
+      localStorage.setItem('road_to_wao_onboarding_seen', 'true');
+    } catch (e) {
+      console.error('Error saving localStorage onboarding state:', e);
+    }
+    setShowOnboarding(false);
+    setCurrentTab('bacheca');
+  };
   const [generalRequests, setGeneralRequests] = useState([]);
   const [selectedRideForJoin, setSelectedRideForJoin] = useState(null);
   const [joinModalMode, setJoinModalMode] = useState(null);
@@ -1166,6 +1196,75 @@ function App() {
             }}
             onGoToMessages={() => setCurrentTab('messaggi')}
           />
+        )}
+
+        {/* Onboarding Modal */}
+        {showOnboarding && (
+          <div className="wao-modal-overlay" style={{ zIndex: 10000 }}>
+            <div className="wao-modal-container">
+              <div className="wao-modal-glow" aria-hidden="true"></div>
+              
+              <div className="wao-modal-form">
+                {/* Header */}
+                <div className="wao-modal-header" style={{ marginBottom: '12px' }}>
+                  <h2 className="wao-modal-title wao-display" style={{ color: 'var(--amber-gold)' }}>
+                    Benvenuto su Road to WAO 🌞
+                  </h2>
+                </div>
+
+                {/* Body Content */}
+                <div className="wao-modal-body" style={{ fontSize: '13px', lineHeight: '1.5', color: 'var(--text-soft)', gap: '14px' }}>
+                  <p style={{ margin: 0, textAlign: 'center', opacity: 0.95 }}>
+                    Questa è una beta community per organizzarci meglio verso il festival: passaggi, crew e persone che partono da zone simili.
+                  </p>
+
+                  <div style={{
+                    background: 'rgba(255, 255, 255, 0.02)',
+                    border: '1px solid rgba(255, 197, 71, 0.12)',
+                    borderRadius: '16px',
+                    padding: '16px 18px',
+                    boxShadow: 'inset 0 0 12px rgba(255, 197, 71, 0.03)'
+                  }}>
+                    <h4 className="wao-display" style={{ fontSize: '11px', margin: '0 0 10px 0', color: 'var(--amber-gold)', letterSpacing: '0.08em' }}>
+                      Come funziona:
+                    </h4>
+                    <ol style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <li style={{ paddingLeft: '2px' }}>Guarda la <strong>Bacheca Viaggi</strong>.</li>
+                      <li style={{ paddingLeft: '2px' }}>Se hai posti in macchina, clicca <strong>Offro posti</strong>.</li>
+                      <li style={{ paddingLeft: '2px' }}>Se cerchi passaggio, clicca <strong>Cerco passaggio</strong>.</li>
+                      <li style={{ paddingLeft: '2px' }}>Compila più dettagli possibili: città, orari, posti, vibe, esigenze e contatti.</li>
+                      <li style={{ paddingLeft: '2px' }}>Più informazioni lasci, più è facile creare match sensati.</li>
+                      <li style={{ paddingLeft: '2px' }}>Dopo la moderazione, se il match ha senso, viene creata o sbloccata la crew Telegram.</li>
+                      <li style={{ paddingLeft: '2px' }}>Lascia contatti corretti: servono per organizzarsi davvero.</li>
+                    </ol>
+                  </div>
+
+                  <p style={{ margin: 0, fontSize: '12.5px', textAlign: 'center', opacity: 0.8, fontStyle: 'italic' }}>
+                    È una prima beta: più la usate, più capiamo come migliorarla.
+                  </p>
+                </div>
+
+                {/* Actions / Footer */}
+                <div className="wao-modal-footer" style={{ marginTop: '16px' }}>
+                  <button
+                    type="button"
+                    className="wao-primary-button wao-display"
+                    onClick={handleCloseOnboardingAndGoToBoard}
+                  >
+                    Vai alla bacheca
+                  </button>
+                  <button
+                    type="button"
+                    className="wao-secondary-button wao-display"
+                    onClick={handleCloseOnboarding}
+                  >
+                    Ho capito
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
         )}
       </div>
     </CosmicAppShell>
