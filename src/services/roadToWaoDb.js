@@ -287,16 +287,21 @@ export async function createRide(payload) {
  */
 export async function fetchJoinRequests() {
   if (!isSupabaseConfigured) {
-    return { data: [], error: new Error('Supabase is not configured') };
+    return { data: null, error: new Error('Supabase is not configured') };
   }
   try {
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData?.user) {
+      return { data: null, error: userError || new Error('User is not authenticated') };
+    }
+
     const { data, error } = await supabase
       .from('join_requests')
-      .select('*')
+      .select('id, ride_id, requester_id, seats_requested, message, status, created_at')
       .order('created_at', { ascending: false });
-    return { data: data || [], error };
+    return { data, error };
   } catch (error) {
-    return { data: [], error };
+    return { data: null, error };
   }
 }
 
@@ -364,6 +369,11 @@ export async function approveJoinRequest(requestId) {
     return { data: null, error: new Error('Supabase is not configured') };
   }
   try {
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData?.user) {
+      return { data: null, error: userError || new Error('User is not authenticated') };
+    }
+
     const { data, error } = await supabase
       .from('join_requests')
       .update({ status: 'approved', approved_at: new Date().toISOString() })
@@ -385,6 +395,11 @@ export async function rejectJoinRequest(requestId) {
     return { data: null, error: new Error('Supabase is not configured') };
   }
   try {
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData?.user) {
+      return { data: null, error: userError || new Error('User is not authenticated') };
+    }
+
     const { data, error } = await supabase
       .from('join_requests')
       .update({ status: 'rejected', rejected_at: new Date().toISOString() })
