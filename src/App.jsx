@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import CosmicAppShell from './components/CosmicAppShell';
-import { fetchRides, createRide, getCurrentUser, getCurrentProfile, createJoinRequest, fetchJoinRequests, approveJoinRequest, rejectJoinRequest } from './services/roadToWaoDb';
+import { fetchRides, createRide, getCurrentUser, getCurrentProfile, createJoinRequest, fetchJoinRequests, approveJoinRequest, rejectJoinRequest, getUnlockedCrewForRide } from './services/roadToWaoDb';
 import { supabase } from './services/supabaseClient';
 import SolarHeroBackground from './components/SolarHeroBackground';
 import BottomNav from './components/BottomNav';
@@ -105,6 +105,81 @@ function App() {
   const [requests, setRequests] = useState([]);
   const [rides, setRides] = useState(INITIAL_RIDES);
   const [authBannerMessage, setAuthBannerMessage] = useState('');
+  const [currentUser, setCurrentUser] = useState(null);
+
+  const attemptedFetchRef = useRef(new Set());
+  const lastUserRef = useRef(null);
+
+  useEffect(() => {
+    if (!supabase) return;
+    getCurrentUser().then(({ data }) => {
+      setCurrentUser(data?.user || null);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setCurrentUser(session?.user || null);
+    });
+
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (currentUser?.id !== lastUserRef.current) {
+      attemptedFetchRef.current.clear();
+      lastUserRef.current = currentUser?.id || null;
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    // 1. Current user driver rides
+    const driverRideIds = rides
+      .filter(r => r.driverId === currentUser.id && isUuid(r.id))
+      .map(r => r.id);
+
+    // 2. Approved join requests where current user is requester
+    const passengerRideIds = joinRequests
+      .filter(req => req.requesterId === currentUser.id && req.status === 'approved' && isUuid(req.rideId))
+      .map(req => req.rideId);
+
+    // 3. Approved legacy requests where current user is requester
+    const legacyPassengerRideIds = requests
+      .filter(req => req.requesterId === currentUser.id && req.status === 'approved' && isUuid(req.rideId))
+      .map(req => req.rideId);
+
+    // Combine and unique
+    const allApprovedRideIds = Array.from(new Set([
+      ...driverRideIds,
+      ...passengerRideIds,
+      ...legacyPassengerRideIds
+    ]));
+
+    allApprovedRideIds.forEach(rideId => {
+      if (attemptedFetchRef.current.has(rideId)) return;
+
+      attemptedFetchRef.current.add(rideId);
+
+      getUnlockedCrewForRide(rideId).then(res => {
+        if (res && res.data && res.data.telegram_group_link) {
+          const link = res.data.telegram_group_link;
+
+          // Update rides state
+          setRides(prev => prev.map(r => r.id === rideId ? { ...r, telegramUrl: link } : r));
+
+          // Update joinRequests state
+          setJoinRequests(prev => prev.map(req => (req.rideId === rideId && req.requesterId === currentUser.id && req.status === 'approved') ? { ...req, telegramUrl: link } : req));
+
+          // Update requests state
+          setRequests(prev => prev.map(req => (req.rideId === rideId && req.requesterId === currentUser.id && req.status === 'approved') ? { ...req, telegramUrl: link } : req));
+        }
+      }).catch(err => {
+        console.error(`Error unlocking crew for ride ${rideId}:`, err);
+      });
+    });
+  }, [currentUser, rides, joinRequests, requests]);
 
   useEffect(() => {
     if (currentTab !== 'profilo') {
@@ -165,6 +240,7 @@ function App() {
           const mappedRides = rawRides.map(ride => ({
             id: ride.id,
             driver: profileMap[ride.driver_id] || `Rider-${ride.driver_id.substring(0, 5)}`,
+            driverId: ride.driver_id,
             departureCity: ride.departure_city,
             from: ride.departure_city,
             destination: ride.to_event || 'WAO',
@@ -255,6 +331,7 @@ function App() {
             return {
               id: req.id,
               rideId: req.ride_id,
+              requesterId: req.requester_id,
               rideSummary: ride 
                 ? `${ride.departureCity}/${ride.departureDate}/${ride.travelTime}/${ride.driver}`
                 : `Ride-${req.ride_id}`,
@@ -303,6 +380,7 @@ function App() {
               luggageNeed: luggageNeed,
               message: cleanMessage,
               rideId: req.ride_id,
+              requesterId: req.requester_id,
               createdAt: req.created_at || new Date().toISOString()
             };
           });
@@ -545,6 +623,7 @@ function App() {
       const mappedJoin = {
         id: supabaseReq.id,
         rideId: supabaseReq.ride_id,
+        requesterId: supabaseReq.requester_id || user.id,
         rideSummary: `${selectedRideForJoin.departureCity}/${selectedRideForJoin.departureDate}/${selectedRideForJoin.travelTime}/${selectedRideForJoin.driver}`,
         type: 'join',
         status: supabaseReq.status || 'pending',
@@ -582,6 +661,7 @@ function App() {
         message: supabaseReq.message || formData.message,
         isOfAge: formData.isOfAge,
         rideId: supabaseReq.ride_id,
+        requesterId: supabaseReq.requester_id || user.id,
         createdAt: supabaseReq.created_at || new Date().toISOString()
       };
 
@@ -822,7 +902,7 @@ function App() {
 
         {currentTab === 'bacheca' && (
           <RoadBoard 
-            rides={rides}
+            rides={rides.map(r => ({ ...r, telegramUrl: null }))}
             onJoinRide={openJoinForRide} 
             onGeneralRequest={openGeneralRequest}
             onOfferRide={handleOpenOfferModal} 
@@ -980,6 +1060,7 @@ function App() {
                 const mappedRide = {
                   id: supabaseRide.id,
                   driver: driverName,
+                  driverId: supabaseRide.driver_id,
                   departureCity: supabaseRide.departure_city,
                   from: supabaseRide.departure_city,
                   destination: supabaseRide.to_event || 'WAO',
