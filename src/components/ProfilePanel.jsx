@@ -67,57 +67,30 @@ export default function ProfilePanel({
   let latestRequest = null;
   let recentActivities = [];
 
-  if (hasNewModelData) {
-    // Priority status checks
-    approvedJoinRequest = (joinRequests || []).find(r => r.status === 'approved' && !r.archived);
-    pendingJoinRequest = (joinRequests || []).find(r => r.status === 'pending' && !r.archived);
-    activeGeneralRequest = (generalRequests || []).find(r => r.status === 'active' && !r.archived);
+  // Compute user driver rides
+  const userDriverRides = (rides || []).filter(ride => {
+    if (!userProfile?.nickname) return false;
+    const nick = userProfile.nickname;
+    return ride.ownerNickname === nick || ride.createdBy === nick || ride.driver === nick;
+  });
 
-    // Compute user driver rides
-    const userDriverRides = (rides || []).filter(ride => {
-      if (!userProfile?.nickname) return false;
-      const nick = userProfile.nickname;
-      return ride.ownerNickname === nick || ride.createdBy === nick || ride.driver === nick;
+  const isDuplicateLegacyOffer = (req) => {
+    if (req.type !== 'offer') return false;
+    return userDriverRides.some(ride => {
+      const driverMatches = ride.driver === req.nickname || 
+                            ride.driver === userProfile?.nickname || 
+                            ride.createdBy === req.nickname ||
+                            ride.ownerNickname === req.nickname;
+      const departureMatches = ride.departureCity === req.departure || 
+                               ride.departureCity === req.departureCity;
+      const dateMatches = ride.departureDate === req.date;
+      const timeMatches = ride.travelTime === req.travelTime;
+      return driverMatches && departureMatches && dateMatches && timeMatches;
     });
+  };
 
-    if (approvedJoinRequest) {
-      matchedRide = rides.find(rd => rd.id === approvedJoinRequest.rideId);
-      currentTravelStatusText = 'Crew attiva';
-      travelStatusColor = 'var(--turquoise)';
-      travelStatusBadge = 'approved';
-      if (matchedRide) {
-        travelStatusSubtitleText = `${matchedRide.departureCity} → ${matchedRide.destination || 'WAO'} (Driver: ${matchedRide.driver})`;
-      } else {
-        travelStatusSubtitleText = 'Crew sbloccata';
-      }
-    } else if (userDriverRides.length > 0) {
-      const firstDriverRide = userDriverRides[0];
-      currentTravelStatusText = 'Viaggio aperto come driver';
-      travelStatusColor = 'var(--turquoise)';
-      travelStatusBadge = firstDriverRide.status || 'open';
-      const route = `${firstDriverRide.departureCity} → ${firstDriverRide.destination || 'WAO'}`;
-      const date = firstDriverRide.departureDate;
-      const seats = `${firstDriverRide.seatsAvailable}/${firstDriverRide.seatsTotal}`;
-      const status = firstDriverRide.status;
-      travelStatusSubtitleText = `${route} · ${date} · Posti: ${seats} · Stato: ${status}`;
-    } else if (pendingJoinRequest) {
-      matchedRide = rides.find(rd => rd.id === pendingJoinRequest.rideId);
-      currentTravelStatusText = 'Richiesta in approvazione';
-      travelStatusColor = 'var(--amber-gold)';
-      travelStatusBadge = 'pending';
-      if (matchedRide) {
-        travelStatusSubtitleText = `${matchedRide.departureCity} → ${matchedRide.destination || 'WAO'} (Driver: ${matchedRide.driver})`;
-      } else {
-        travelStatusSubtitleText = 'Richiesta in attesa';
-      }
-    } else if (activeGeneralRequest) {
-      currentTravelStatusText = 'Richiesta generale attiva';
-      travelStatusSubtitleText = 'Stiamo cercando una crew compatibile.';
-      travelStatusColor = 'var(--amber-gold)';
-      travelStatusBadge = 'active';
-    }
-
-    // Counts
+  // 1. Compute counts and activities first
+  if (hasNewModelData) {
     statPending = (joinRequests || []).filter(r => r.status === 'pending').length;
     statApproved = (joinRequests || []).filter(r => r.status === 'approved').length;
     statGeneralActive = (generalRequests || []).filter(r => r.status === 'active').length;
@@ -125,7 +98,6 @@ export default function ProfilePanel({
       (joinRequests || []).filter(r => r.status === 'rejected' || r.archived).length +
       (generalRequests || []).filter(r => r.status === 'rejected' || r.archived).length;
 
-    // Latest and recent activities
     const allNewRequests = [
       ...(joinRequests || []).map(r => ({ ...r, reqType: 'join' })),
       ...(generalRequests || []).map(r => ({ ...r, reqType: 'general' }))
@@ -140,10 +112,14 @@ export default function ProfilePanel({
     const nonArchivedNew = sortedNew.filter(r => !r.archived);
     latestRequest = nonArchivedNew[0];
     recentActivities = nonArchivedNew.slice(0, 3);
-
   } else {
-    // Legacy requests fallback
-    const sortedLegacy = [...(requests || [])].sort((a, b) => {
+    const filteredRequests = (requests || []).filter(r => !isDuplicateLegacyOffer(r));
+    statPending = filteredRequests.filter(r => !r.status || r.status === 'pending').length;
+    statApproved = filteredRequests.filter(r => r.status === 'approved').length;
+    statGeneralActive = 0;
+    statRejectedArchived = filteredRequests.filter(r => r.status === 'rejected' || r.archived).length;
+
+    const sortedLegacy = [...filteredRequests].sort((a, b) => {
       const dateA = a.createdAt ? new Date(a.createdAt).getTime() : a.id || 0;
       const dateB = b.createdAt ? new Date(b.createdAt).getTime() : b.id || 0;
       return dateB - dateA;
@@ -152,7 +128,56 @@ export default function ProfilePanel({
     const nonArchivedLegacy = sortedLegacy.filter(r => !r.archived);
     latestRequest = nonArchivedLegacy[0];
     recentActivities = nonArchivedLegacy.slice(0, 3);
+  }
 
+  // 2. Set Travel Status based on unified priority logic
+  const candidateApprovedJoin = hasNewModelData ? (joinRequests || []).find(r => r.status === 'approved' && !r.archived) : null;
+  const candidatePendingJoin = hasNewModelData ? (joinRequests || []).find(r => r.status === 'pending' && !r.archived) : null;
+  const candidateActiveGeneral = hasNewModelData ? (generalRequests || []).find(r => r.status === 'active' && !r.archived) : null;
+
+  if (candidateApprovedJoin) {
+    approvedJoinRequest = candidateApprovedJoin;
+    matchedRide = rides.find(rd => rd.id === approvedJoinRequest.rideId);
+    currentTravelStatusText = 'Crew attiva';
+    travelStatusColor = 'var(--turquoise)';
+    travelStatusBadge = 'approved';
+    if (matchedRide) {
+      travelStatusSubtitleText = `${matchedRide.departureCity} → ${matchedRide.destination || 'WAO'} (Driver: ${matchedRide.driver})`;
+    } else {
+      travelStatusSubtitleText = 'Crew sbloccata';
+    }
+  } else if (userDriverRides.length > 0) {
+    const firstDriverRide = userDriverRides[0];
+    const isStatusOpen = firstDriverRide.status === 'open' || (firstDriverRide.seatsAvailable !== undefined && firstDriverRide.seatsAvailable > 0);
+    currentTravelStatusText = 'Viaggio aperto come driver';
+    travelStatusColor = 'var(--turquoise)';
+    travelStatusBadge = isStatusOpen ? 'APERTO' : 'COMPLETO';
+    const route = `${firstDriverRide.departureCity} → ${firstDriverRide.destination || 'WAO'}`;
+    const date = firstDriverRide.departureDate;
+    const seats = `${firstDriverRide.seatsAvailable}/${firstDriverRide.seatsTotal}`;
+    travelStatusSubtitleText = `${route} · ${date} · Posti: ${seats}`;
+    approvedJoinRequest = null;
+  } else if (hasNewModelData && (candidatePendingJoin || candidateActiveGeneral)) {
+    if (candidatePendingJoin) {
+      pendingJoinRequest = candidatePendingJoin;
+      matchedRide = rides.find(rd => rd.id === pendingJoinRequest.rideId);
+      currentTravelStatusText = 'Richiesta in approvazione';
+      travelStatusColor = 'var(--amber-gold)';
+      travelStatusBadge = 'pending';
+      if (matchedRide) {
+        travelStatusSubtitleText = `${matchedRide.departureCity} → ${matchedRide.destination || 'WAO'} (Driver: ${matchedRide.driver})`;
+      } else {
+        travelStatusSubtitleText = 'Richiesta in attesa';
+      }
+    } else if (candidateActiveGeneral) {
+      activeGeneralRequest = candidateActiveGeneral;
+      currentTravelStatusText = 'Richiesta generale attiva';
+      travelStatusSubtitleText = 'Stiamo cercando una crew compatibile.';
+      travelStatusColor = 'var(--amber-gold)';
+      travelStatusBadge = 'active';
+    }
+  } else {
+    // Legacy fallback status matching
     if (latestRequest) {
       const isPending = !latestRequest.status || latestRequest.status === 'pending';
       const isApproved = latestRequest.status === 'approved';
@@ -176,11 +201,6 @@ export default function ProfilePanel({
         travelStatusBadge = 'rejected';
       }
     }
-
-    statPending = (requests || []).filter(r => !r.status || r.status === 'pending').length;
-    statApproved = (requests || []).filter(r => r.status === 'approved').length;
-    statGeneralActive = 0; // Legacy doesn't have split arrays
-    statRejectedArchived = (requests || []).filter(r => r.status === 'rejected' || r.archived).length;
   }
 
   return (

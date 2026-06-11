@@ -32,6 +32,22 @@ export default function MessagesPanel({
     return ride.ownerNickname === nick || ride.createdBy === nick || ride.driver === nick;
   });
 
+  const isDuplicateLegacyOffer = (req) => {
+    if (req.type !== 'offer') return false;
+    return userDriverRides.some(ride => {
+      const driverMatches = ride.driver === req.nickname || 
+                            ride.driver === userProfile?.nickname || 
+                            ride.createdBy === req.nickname ||
+                            ride.ownerNickname === req.nickname;
+      const departureMatches = ride.departureCity === req.departure || 
+                               ride.departureCity === req.departureCity;
+      const dateMatches = ride.departureDate === req.date;
+      const timeMatches = ride.travelTime === req.travelTime;
+      return driverMatches && departureMatches && dateMatches && timeMatches;
+    });
+  };
+
+
   // -------------------------------------------------------------
   // NEW MODEL LOGIC
   // -------------------------------------------------------------
@@ -59,9 +75,11 @@ export default function MessagesPanel({
     return dateB - dateA;
   });
 
-  const activeLegacyRequests = sortedLegacyRequests.filter(r => r.status !== 'rejected');
-  const rejectedLegacyToArchive = sortedLegacyRequests.filter(r => r.status === 'rejected' && !r.archived);
-  const archivedLegacyRequests = sortedLegacyRequests.filter(r => r.archived === true);
+  const filteredLegacyRequests = sortedLegacyRequests.filter(r => !isDuplicateLegacyOffer(r));
+
+  const activeLegacyRequests = filteredLegacyRequests.filter(r => r.status !== 'rejected');
+  const rejectedLegacyToArchive = filteredLegacyRequests.filter(r => r.status === 'rejected' && !r.archived);
+  const archivedLegacyRequests = filteredLegacyRequests.filter(r => r.archived === true);
 
   // -------------------------------------------------------------
   // CARD RENDERERS
@@ -547,7 +565,7 @@ export default function MessagesPanel({
   const activeList = hasNewModelData ? activeNewRequests : activeLegacyRequests;
   const toArchiveList = hasNewModelData ? rejectedNewToArchive : rejectedLegacyToArchive;
   const archivedList = hasNewModelData ? archivedNewRequests : archivedLegacyRequests;
-  const totalCount = hasNewModelData ? sortedNewRequests.length : sortedLegacyRequests.length;
+  const hasItems = userDriverRides.length > 0 || (hasNewModelData ? sortedNewRequests.length > 0 : filteredLegacyRequests.length > 0);
 
   return (
     <div className="messages-panel-content" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
@@ -567,7 +585,7 @@ export default function MessagesPanel({
         <p className="board-subtitle" style={{ marginTop: '6px' }}>Gestisci le tue richieste di viaggio e i messaggi.</p>
       </header>
 
-      {totalCount === 0 ? (
+      {!hasItems ? (
         <div className="placeholder-card">
           <div className="placeholder-icon">
             <svg viewBox="0 0 24 24" width="48" height="48" stroke="var(--amber-gold)" strokeWidth="1.5" fill="none">
@@ -590,40 +608,59 @@ export default function MessagesPanel({
       ) : (
         <div className="messages-list" style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
           
-          {/* Dedicated section/card for driver rides when the new model is active */}
-          {hasNewModelData && userDriverRides.length > 0 && (
+          {/* Dedicated section/card for driver rides */}
+          {userDriverRides.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <h3 className="wao-display" style={{ fontSize: '13px', color: 'var(--turquoise)', letterSpacing: '0.05em', margin: '0 0 2px 0' }}>
                 Il tuo viaggio aperto
               </h3>
-              {userDriverRides.map((ride, idx) => (
-                <div key={ride.id || idx} className="ride-card card-approved" style={{ padding: '12px 14px', position: 'relative' }}>
-                  <div className="ride-card-glow-approved" aria-hidden="true"></div>
-                  
-                  {/* Route */}
-                  <div className="wao-display" style={{ fontSize: '15px', color: 'var(--text-main)', textTransform: 'none', margin: '4px 0 6px 0' }}>
-                    {ride.departureCity} → {ride.destination || 'WAO'}
-                  </div>
+              {userDriverRides.map((ride, idx) => {
+                const isStatusOpen = ride.status === 'open' || (ride.seatsAvailable !== undefined && ride.seatsAvailable > 0);
+                const badgeText = isStatusOpen ? 'APERTO' : 'COMPLETO';
+                const badgeClass = isStatusOpen ? 'badge-approved' : 'badge-rejected';
 
-                  {/* Details */}
-                  <div style={{ 
-                    fontSize: '12px', 
-                    color: 'var(--text-soft)', 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    gap: '4px', 
-                    background: 'rgba(0, 0, 0, 0.25)', 
-                    padding: '8px 10px', 
-                    borderRadius: '8px' 
-                  }}>
-                    <div>Data partenza: <strong>{ride.departureDate}</strong></div>
-                    <div>Fascia oraria: <strong>{ride.travelTime}</strong></div>
-                    <div>Posti: <strong>{ride.seatsAvailable} / {ride.seatsTotal}</strong></div>
-                    {ride.luggageCapacity && <div>Spazio bagagli: <strong>{ride.luggageCapacity}</strong></div>}
-                    <div>Stato: <strong style={{ color: 'var(--turquoise)' }}>{ride.status === 'open' ? 'aperto' : (ride.status === 'full' ? 'completo' : ride.status)}</strong></div>
+                return (
+                  <div key={ride.id || idx} className={`ride-card ${isStatusOpen ? 'card-approved' : 'card-rejected'}`} style={{ padding: '12px 14px', position: 'relative' }}>
+                    {isStatusOpen ? (
+                      <div className="ride-card-glow-approved" aria-hidden="true"></div>
+                    ) : (
+                      <div className="ride-card-glow-rejected" aria-hidden="true"></div>
+                    )}
+                    
+                    {/* Card Header: Type badge + Status badge */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <span style={{ fontSize: '10px', color: 'var(--text-soft)', textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '0.05em' }}>
+                        Il tuo viaggio aperto
+                      </span>
+                      <span className={`ride-badge ${badgeClass}`} style={{ fontSize: '9px', padding: '2px 8px' }}>
+                        {badgeText}
+                      </span>
+                    </div>
+
+                    {/* Route */}
+                    <div className="wao-display" style={{ fontSize: '15px', color: 'var(--text-main)', textTransform: 'none', margin: '4px 0 6px 0' }}>
+                      {ride.departureCity} → {ride.destination || 'WAO'}
+                    </div>
+
+                    {/* Details */}
+                    <div style={{ 
+                      fontSize: '12px', 
+                      color: 'var(--text-soft)', 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      gap: '4px', 
+                      background: 'rgba(0, 0, 0, 0.25)', 
+                      padding: '8px 10px', 
+                      borderRadius: '8px' 
+                    }}>
+                      <div>Data partenza: <strong>{ride.departureDate}</strong></div>
+                      <div>Fascia oraria: <strong>{ride.travelTime}</strong></div>
+                      <div>Posti: <strong>{ride.seatsAvailable} / {ride.seatsTotal}</strong></div>
+                      {ride.luggageCapacity && <div>Spazio bagagli: <strong>{ride.luggageCapacity}</strong></div>}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
