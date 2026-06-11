@@ -116,10 +116,16 @@ function App() {
     if (!supabase) return;
 
     const recoveryUrl = typeof window !== 'undefined'
-      ? `${window.location.hash || ''} ${window.location.search || ''}`.includes('type=recovery')
+      ? `${window.location.hash || ''} ${window.location.search || ''}`
+      : '';
+
+    const hasRecoveryType = recoveryUrl.includes('type=recovery');
+    const hasAuthCode = recoveryUrl.includes('code=');
+    const recoveryPending = typeof window !== 'undefined'
+      ? window.localStorage.getItem('road_to_wao_password_recovery_pending') === 'true'
       : false;
 
-    if (recoveryUrl) {
+    if (hasRecoveryType || (hasAuthCode && recoveryPending)) {
       setCurrentTab('profilo');
       setPasswordRecoveryMode(true);
     }

@@ -57,7 +57,9 @@ export default function ProfilePanel({
 
   const isPasswordRecoveryUrl = () => {
     if (typeof window === 'undefined') return false;
-    return `${window.location.hash || ''} ${window.location.search || ''}`.includes('type=recovery');
+    const urlBits = `${window.location.hash || ''} ${window.location.search || ''}`;
+    const recoveryPending = window.localStorage.getItem('road_to_wao_password_recovery_pending') === 'true';
+    return urlBits.includes('type=recovery') || (urlBits.includes('code=') && recoveryPending);
   };
 
   useEffect(() => {
@@ -297,8 +299,11 @@ export default function ProfilePanel({
     setConfirmPassword('');
     setAuthMode('login');
 
-    if (typeof window !== 'undefined' && window.history?.replaceState) {
-      window.history.replaceState(null, '', window.location.pathname);
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem('road_to_wao_password_recovery_pending');
+      if (window.history?.replaceState) {
+        window.history.replaceState(null, '', window.location.pathname);
+      }
     }
 
     setMessage({
@@ -316,6 +321,10 @@ export default function ProfilePanel({
     }
     setAuthLoading(true);
     setMessage({ type: '', text: '' });
+
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('road_to_wao_password_recovery_pending', 'true');
+    }
 
     const { data, error } = await resetPasswordForEmail(email);
     if (error) {
