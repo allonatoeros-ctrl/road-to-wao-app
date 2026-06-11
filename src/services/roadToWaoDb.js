@@ -33,24 +33,178 @@ export async function getCurrentUser() {
 }
 
 /**
- * Fetches the user profile linked to the authenticated user ID.
- * Table: profiles
+ * Signs up a new user with email and password.
+ * Table: None (handled by auth.signUp())
+ */
+export async function signUpWithEmail(email, password) {
+  if (!isSupabaseConfigured) {
+    return { data: null, error: new Error('Supabase is not configured') };
+  }
+  try {
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+/**
+ * Signs in an existing user with email and password.
+ * Table: None (handled by auth.signInWithPassword())
+ */
+export async function signInWithEmail(email, password) {
+  if (!isSupabaseConfigured) {
+    return { data: null, error: new Error('Supabase is not configured') };
+  }
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+/**
+ * Signs out the current user.
+ * Table: None (handled by auth.signOut())
+ */
+export async function signOut() {
+  if (!isSupabaseConfigured) {
+    return { data: null, error: new Error('Supabase is not configured') };
+  }
+  try {
+    const { error } = await supabase.auth.signOut();
+    return { data: null, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+/**
+ * Fetches the user profile linked to the authenticated user ID, merging public and private fields.
+ * Table: profiles, profile_secrets
  */
 export async function getCurrentProfile() {
   if (!isSupabaseConfigured) {
     return { data: null, error: new Error('Supabase is not configured') };
   }
   try {
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError) return { data: null, error: userError };
-    if (!user) return { data: null, error: new Error('No authenticated user') };
+    const { data, error: userError } = await supabase.auth.getUser();
+    const user = data?.user;
+    if (!user) {
+      return { data: null, error: null };
+    }
 
-    const { data, error } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      return { data: null, error: profileError };
+    }
+
+    if (!profile) {
+      return { data: null, error: null };
+    }
+
+    const { data: secrets, error: secretsError } = await supabase
+      .from('profile_secrets')
+      .select('telegram_username, instagram_username')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (secretsError) {
+      return { data: null, error: secretsError };
+    }
+
+    const merged = {
+      ...profile,
+      telegram_username: secrets?.telegram_username || null,
+      instagram_username: secrets?.instagram_username || null,
+    };
+
+    return { data: merged, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+/**
+ * Upserts user profile and private social/contact secrets.
+ * Table: profiles, profile_secrets
+ */
+export async function upsertProfileLite(profilePayload) {
+  if (!isSupabaseConfigured) {
+    return { data: null, error: new Error('Supabase is not configured') };
+  }
+  try {
+    const { data, error: userError } = await supabase.auth.getUser();
+    const user = data?.user;
+    if (userError) return { data: null, error: userError };
+    if (!user) return { data: null, error: new Error('No authenticated user') };
+
+    // 1. Upsert public profile
+    const profileFields = {
+      id: user.id,
+      nickname: profilePayload.nickname,
+      departure_city: profilePayload.departure_city,
+      role: profilePayload.role,
+      is_of_age: profilePayload.is_of_age,
+    };
+
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .upsert(profileFields)
+      .select()
       .single();
-    return { data, error };
+
+    if (profileError) {
+      return { data: null, error: profileError };
+    }
+
+    // 2. Upsert profile secrets if provided
+    let secretsData = null;
+    const hasTelegram = profilePayload.telegram_username !== undefined;
+    const hasInstagram = profilePayload.instagram_username !== undefined;
+
+    if (hasTelegram || hasInstagram) {
+      const secretsFields = { id: user.id };
+      if (hasTelegram) {
+        secretsFields.telegram_username = profilePayload.telegram_username;
+      }
+      if (hasInstagram) {
+        secretsFields.instagram_username = profilePayload.instagram_username;
+      }
+
+      const { data: sData, error: secretsError } = await supabase
+        .from('profile_secrets')
+        .upsert(secretsFields)
+        .select()
+        .maybeSingle();
+
+      if (secretsError) {
+        return { data: null, error: secretsError };
+      }
+      secretsData = sData;
+    } else {
+      // Fetch existing secrets if any to return the merged object
+      const { data: sData } = await supabase
+        .from('profile_secrets')
+        .select('telegram_username, instagram_username')
+        .eq('id', user.id)
+        .maybeSingle();
+      secretsData = sData;
+    }
+
+    const merged = {
+      ...profileData,
+      telegram_username: secretsData?.telegram_username || null,
+      instagram_username: secretsData?.instagram_username || null,
+    };
+
+    return { data: merged, error: null };
   } catch (error) {
     return { data: null, error };
   }
