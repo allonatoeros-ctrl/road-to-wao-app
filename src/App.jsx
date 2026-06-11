@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import CosmicAppShell from './components/CosmicAppShell';
-import { fetchRides } from './services/roadToWaoDb';
+import { fetchRides, createRide, getCurrentUser, getCurrentProfile } from './services/roadToWaoDb';
 import { supabase } from './services/supabaseClient';
 import SolarHeroBackground from './components/SolarHeroBackground';
 import BottomNav from './components/BottomNav';
@@ -70,6 +70,24 @@ const INITIAL_RIDES = [
     telegramUrl: '#telegram-demo'
   }
 ];
+
+function normalizeDepartureDate(dateStr) {
+  if (!dateStr) return null;
+  const clean = dateStr.trim().toLowerCase();
+  
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
+    return dateStr.trim();
+  }
+  
+  if (clean.includes('14 agosto')) {
+    return '2026-08-14';
+  }
+  if (clean.includes('13 agosto')) {
+    return '2026-08-13';
+  }
+  
+  return null;
+}
 
 function App() {
   const [currentTab, setCurrentTab] = useState('casa');
@@ -505,37 +523,129 @@ function App() {
           <OfferRideModal
             userProfile={userProfile}
             onClose={() => setShowOfferModal(false)}
-            onSubmitOffer={(newOffer) => {
-              const offerWithId = {
-                ...newOffer,
-                id: newOffer.id || `offer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                createdAt: newOffer.createdAt || new Date().toISOString()
-              };
-              setRequests(prev => [offerWithId, ...prev]);
+            onSubmitOffer={async (newOffer) => {
+              const runLocalFlow = () => {
+                const offerWithId = {
+                  ...newOffer,
+                  id: newOffer.id || `offer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                  createdAt: newOffer.createdAt || new Date().toISOString()
+                };
+                setRequests(prev => [offerWithId, ...prev]);
 
-              const seatsFromSpots = parseInt(newOffer.spots.charAt(0)) || 2;
-              const newRide = {
-                id: `ride-${Date.now()}`,
-                driver: newOffer.nickname,
-                departureCity: newOffer.departure,
-                destination: 'WAO',
-                departureDate: newOffer.date,
-                travelTime: newOffer.travelTime,
-                tripType: newOffer.tripType,
-                seatsTotal: seatsFromSpots,
-                seatsAvailable: seatsFromSpots,
-                luggageCapacity: newOffer.luggageCapacity,
-                luggageDetails: newOffer.luggageDetails,
-                stops: newOffer.stops,
-                status: 'open',
-                telegramUrl: '#telegram-demo'
-              };
-              setRides(prev => [newRide, ...prev]);
+                const seatsFromSpots = parseInt(newOffer.spots.charAt(0)) || 2;
+                const newRide = {
+                  id: `ride-${Date.now()}`,
+                  driver: newOffer.nickname,
+                  departureCity: newOffer.departure,
+                  destination: 'WAO',
+                  departureDate: newOffer.date,
+                  travelTime: newOffer.travelTime,
+                  tripType: newOffer.tripType,
+                  seatsTotal: seatsFromSpots,
+                  seatsAvailable: seatsFromSpots,
+                  luggageCapacity: newOffer.luggageCapacity,
+                  luggageDetails: newOffer.luggageDetails,
+                  stops: newOffer.stops,
+                  status: 'open',
+                  telegramUrl: '#telegram-demo'
+                };
+                setRides(prev => [newRide, ...prev]);
 
-              handleUpdateProfile({
-                nickname: newOffer.nickname,
-                departureCity: newOffer.departure
-              });
+                handleUpdateProfile({
+                  nickname: newOffer.nickname,
+                  departureCity: newOffer.departure
+                });
+              };
+
+              try {
+                const { data: userData, error: userError } = await getCurrentUser();
+                const user = userData?.user;
+                if (userError || !user) {
+                  runLocalFlow();
+                  return;
+                }
+
+                // Authenticated user exists
+                let profileNickname = null;
+                try {
+                  const { data: profileData } = await getCurrentProfile();
+                  if (profileData && profileData.nickname) {
+                    profileNickname = profileData.nickname;
+                  }
+                } catch (pErr) {
+                  console.error('Error fetching current profile:', pErr);
+                }
+
+                const driverName = profileNickname || newOffer.nickname || 'Driver';
+
+                const normalizedDate = normalizeDepartureDate(newOffer.date);
+                if (!normalizedDate) {
+                  console.warn('Could not normalize departure date safely, falling back to local flow');
+                  runLocalFlow();
+                  return;
+                }
+
+                const seatsFromSpots = parseInt(newOffer.spots.charAt(0)) || 2;
+                const notesList = [];
+                if (newOffer.message) notesList.push(newOffer.message);
+                if (newOffer.luggageCapacity) notesList.push(`Spazio bagagli: ${newOffer.luggageCapacity}`);
+                if (newOffer.luggageDetails) notesList.push(`Dettagli bagagli: ${newOffer.luggageDetails}`);
+                const notesCombined = notesList.join(' | ');
+
+                const payload = {
+                  departure_city: newOffer.departure,
+                  departure_area: newOffer.stops || null,
+                  to_event: 'WAO Festival',
+                  departure_date: normalizedDate,
+                  return_date: newOffer.return_date || null,
+                  seats_total: seatsFromSpots,
+                  seats_available: seatsFromSpots,
+                  departure_time_label: newOffer.travelTime,
+                  vibe: newOffer.vibe || null,
+                  notes: notesCombined
+                };
+
+                const { data: supabaseRide, error: createError } = await createRide(payload);
+                if (createError || !supabaseRide) {
+                  if (createError) {
+                    console.error('Error creating ride in Supabase:', createError);
+                  }
+                  runLocalFlow();
+                  return;
+                }
+
+                // Map returned ride back into the UI ride shape expected by RoadBoard/Messages/Profile
+                const mappedRide = {
+                  id: supabaseRide.id,
+                  driver: driverName,
+                  departureCity: supabaseRide.departure_city,
+                  from: supabaseRide.departure_city,
+                  destination: supabaseRide.to_event || 'WAO',
+                  to: supabaseRide.to_event || 'WAO',
+                  departureDate: supabaseRide.departure_date,
+                  departure: supabaseRide.departure_date,
+                  travelTime: supabaseRide.departure_time_label,
+                  tripType: supabaseRide.return_date ? 'andata e ritorno' : 'solo andata',
+                  seatsTotal: supabaseRide.seats_total,
+                  seatsAvailable: supabaseRide.seats_available,
+                  luggageCapacity: newOffer.luggageCapacity || (supabaseRide.vibe ? 'medio' : 'poco'),
+                  luggageDetails: supabaseRide.notes || '',
+                  stops: supabaseRide.departure_area || '',
+                  status: supabaseRide.status,
+                  telegramUrl: null
+                };
+
+                setRides(prev => [mappedRide, ...prev]);
+
+                handleUpdateProfile({
+                  nickname: driverName,
+                  departureCity: newOffer.departure
+                });
+
+              } catch (e) {
+                console.error('Unexpected error in onSubmitOffer:', e);
+                runLocalFlow();
+              }
             }}
             onGoToMessages={() => setCurrentTab('messaggi')}
           />
