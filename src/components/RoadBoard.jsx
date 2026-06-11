@@ -97,7 +97,6 @@ export default function RoadBoard({ rides, onJoinRide, onGeneralRequest, onOffer
         })}
       </section>
 
-      {/* CTA per Richiesta Generale */}
       <div 
         className="ride-card general-request-cta" 
         style={{ 
@@ -120,8 +119,18 @@ export default function RoadBoard({ rides, onJoinRide, onGeneralRequest, onOffer
         <button 
           type="button" 
           className="wao-primary-button wao-display"
-          onClick={() => onGeneralRequest && onGeneralRequest()}
-          style={{ width: 'auto', padding: '8px 18px', fontSize: '12px' }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onGeneralRequest && onGeneralRequest();
+          }}
+          style={{ 
+            width: '100%', 
+            padding: '12px 18px', 
+            fontSize: '13px', 
+            position: 'relative', 
+            zIndex: 10, 
+            pointerEvents: 'auto' 
+          }}
         >
           Lascia richiesta generale
         </button>

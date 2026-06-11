@@ -216,10 +216,15 @@ function App() {
   }, [currentTab]);
 
   const requireAuthForAction = async (actionName, callback) => {
+    if (currentUser) {
+      callback();
+      return;
+    }
     try {
       const { data: userData, error: userError } = await getCurrentUser();
       const user = userData?.user;
       if (user && !userError) {
+        setCurrentUser(user);
         callback();
       } else {
         setCurrentTab('profilo');

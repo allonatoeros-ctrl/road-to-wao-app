@@ -139,7 +139,7 @@ export default function JoinRequestModal({
             )}
 
             {/* Campi Form */}
-            <div className="wao-modal-body" style={{ maxHeight: '55dvh', overflowY: 'auto', paddingRight: '4px' }}>
+            <div className="wao-modal-body">
               <div className="form-group">
                 <label className="form-label" htmlFor="nickname">Nickname</label>
                 <input

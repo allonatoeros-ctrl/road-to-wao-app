@@ -597,6 +597,14 @@
   transform: scale(0.99);
 }
 
+.ride-card.general-request-cta:active {
+  transform: none;
+}
+
+.general-request-cta {
+  flex-shrink: 0;
+}
+
 .ride-card.card-open {
   border-color: rgba(255, 106, 0, 0.3);
 }
@@ -1102,24 +1110,23 @@
 /* --- JOIN REQUEST MODAL & FORM STYLES --- */
 .wao-modal-overlay {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   background: rgba(5, 5, 10, 0.78);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  z-index: 200;
+  z-index: 9999;
   display: flex;
   justify-content: center;
   align-items: flex-end;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   animation: waoFadeIn 0.25s ease-out;
 }
 
 /* On mobile (iPhone 13 viewport), we can slide it up like a premium bottom sheet, or center it but with max-height and scrolling */
 .wao-modal-container {
   width: 100%;
-  max-height: 90%;
+  max-height: calc(100dvh - 16px);
   background: rgba(14, 13, 38, 0.92);
   border: 1px solid rgba(255, 197, 71, 0.18);
   border-bottom: none;
@@ -1161,8 +1168,11 @@
   flex-direction: column;
   gap: 14px;
   overflow-y: auto;
-  max-height: 100%;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+  max-height: none;
   padding-right: 4px;
+  padding-bottom: 24px;
   z-index: 2;
 }
 
