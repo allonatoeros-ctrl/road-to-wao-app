@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import CosmicAppShell from './components/CosmicAppShell';
+import { fetchRides } from './services/roadToWaoDb';
+import { supabase } from './services/supabaseClient';
 import SolarHeroBackground from './components/SolarHeroBackground';
 import BottomNav from './components/BottomNav';
 import RoadBoard from './components/RoadBoard';
@@ -78,6 +80,77 @@ function App() {
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [requests, setRequests] = useState([]);
   const [rides, setRides] = useState(INITIAL_RIDES);
+
+  useEffect(() => {
+    let active = true;
+    async function loadSupabaseRides() {
+      try {
+        const { data: rawRides, error: ridesError } = await fetchRides();
+        if (ridesError) {
+          console.error('Error fetching rides from Supabase:', ridesError);
+          console.log('Fallback to local demo rides');
+          return;
+        }
+
+        if (!active) return;
+
+        if (rawRides && rawRides.length > 0) {
+          let profileMap = {};
+          if (supabase) {
+            try {
+              const { data: profiles, error: profilesError } = await supabase
+                .from('profiles')
+                .select('id, nickname');
+              
+              if (!profilesError && profiles) {
+                profiles.forEach(p => {
+                  if (p.id && p.nickname) {
+                    profileMap[p.id] = p.nickname;
+                  }
+                });
+              }
+            } catch (err) {
+              console.error('Error fetching profiles from Supabase:', err);
+            }
+          }
+
+          const mappedRides = rawRides.map(ride => ({
+            id: ride.id,
+            driver: profileMap[ride.driver_id] || `Rider-${ride.driver_id.substring(0, 5)}`,
+            departureCity: ride.departure_city,
+            from: ride.departure_city,
+            destination: ride.to_event || 'WAO',
+            to: ride.to_event || 'WAO',
+            departureDate: ride.departure_date,
+            departure: ride.departure_date,
+            travelTime: ride.departure_time_label,
+            tripType: ride.return_date ? 'andata e ritorno' : 'solo andata',
+            seatsTotal: ride.seats_total,
+            seatsAvailable: ride.seats_available,
+            luggageCapacity: ride.vibe ? 'medio' : 'poco',
+            luggageDetails: ride.notes || '',
+            stops: ride.departure_area || '',
+            status: ride.status,
+            telegramUrl: null
+          }));
+
+          setRides(mappedRides);
+          console.log(`loaded Supabase rides count: ${mappedRides.length}`);
+        } else {
+          console.log('Fallback to local demo rides');
+        }
+      } catch (err) {
+        console.error('Unexpected error in loadSupabaseRides:', err);
+        console.log('Fallback to local demo rides');
+      }
+    }
+
+    loadSupabaseRides();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const [userProfile, setUserProfile] = useState(() => {
     const saved = localStorage.getItem('wao_profile');
