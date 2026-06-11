@@ -67,7 +67,9 @@ export async function fetchRides() {
   try {
     const { data, error } = await supabase
       .from('rides')
-      .select('*')
+      .select('id, driver_id, departure_city, departure_area, to_event, departure_date, return_date, seats_total, seats_available, departure_time_label, vibe, notes, status, visibility, created_at')
+      .eq('visibility', 'public')
+      .in('status', ['open', 'full'])
       .order('created_at', { ascending: false });
     return { data: data || [], error };
   } catch (error) {
