@@ -97,7 +97,11 @@ export async function resetPasswordForEmail(email) {
     return { data: null, error: new Error('Email is required') };
   }
   try {
-    const { data, error } = await supabase.auth.resetPasswordForEmail(email);
+    const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined;
+    const { data, error } = await supabase.auth.resetPasswordForEmail(
+      email,
+      redirectTo ? { redirectTo } : undefined
+    );
     return { data, error };
   } catch (error) {
     return { data: null, error };
