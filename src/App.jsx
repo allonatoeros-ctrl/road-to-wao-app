@@ -136,12 +136,23 @@ function App() {
   useEffect(() => {
     if (!currentUser) {
       setIsAdmin(false);
+      setUserProfile(DEFAULT_PROFILE);
       return;
     }
     let active = true;
     getCurrentProfile().then(({ data }) => {
       if (active) {
         setIsAdmin(!!data?.is_admin);
+        if (data?.nickname) {
+          setUserProfile(prev => ({
+            ...prev,
+            nickname: data.nickname,
+            departureCity: data.departure_city || prev.departureCity || '',
+            vibe: data.role || prev.vibe || '',
+            badge: data.role || prev.badge || 'user',
+            status: data.is_of_age ? 'Maggiorenne' : prev.status
+          }));
+        }
       }
     }).catch((err) => {
       console.error('Error checking admin status:', err);
@@ -993,7 +1004,7 @@ function App() {
           <JoinRequestModal
             selectedRide={selectedRideForJoin}
             mode={joinModalMode}
-            userProfile={userProfile}
+            userProfile={currentUser ? userProfile : null}
             onClose={closeJoinModal}
             onSubmit={handleSubmitJoinRequest}
             onGoToMessages={() => setCurrentTab('messaggi')}
