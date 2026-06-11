@@ -1215,7 +1215,7 @@ function App() {
                 {/* Body Content */}
                 <div className="wao-modal-body" style={{ fontSize: '13px', lineHeight: '1.5', color: 'var(--text-soft)', gap: '14px' }}>
                   <p style={{ margin: 0, textAlign: 'center', opacity: 0.95 }}>
-                    Questa è una beta community per organizzarci meglio verso il festival: passaggi, crew e persone che partono da zone simili.
+                    Questa è una beta community non ufficiale per aiutarci a organizzarci meglio verso il festival: passaggi, crew e persone che partono da zone simili.
                   </p>
 
                   <div style={{
@@ -1229,18 +1229,23 @@ function App() {
                       Come funziona:
                     </h4>
                     <ol style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <li style={{ paddingLeft: '2px' }}>Guarda la <strong>Bacheca Viaggi</strong>.</li>
-                      <li style={{ paddingLeft: '2px' }}>Se hai posti in macchina, clicca <strong>Offro posti</strong>.</li>
-                      <li style={{ paddingLeft: '2px' }}>Se cerchi passaggio, clicca <strong>Cerco passaggio</strong>.</li>
-                      <li style={{ paddingLeft: '2px' }}>Compila più dettagli possibili: città, orari, posti, vibe, esigenze e contatti.</li>
-                      <li style={{ paddingLeft: '2px' }}>Più informazioni lasci, più è facile creare match sensati.</li>
-                      <li style={{ paddingLeft: '2px' }}>Dopo la moderazione, se il match ha senso, viene creata o sbloccata la crew Telegram.</li>
-                      <li style={{ paddingLeft: '2px' }}>Lascia contatti corretti: servono per organizzarsi davvero.</li>
+                      <li style={{ paddingLeft: '2px' }}>Prima guarda la <strong>Bacheca Viaggi</strong>: se c’è già un viaggio aperto compatibile con te, chiedi di unirti a quello.</li>
+                      <li style={{ paddingLeft: '2px' }}>Se hai posti in macchina, clicca <strong>“Offro posti”</strong>: creerai un viaggio in bacheca e diventerai il punto di riferimento per quella tratta.</li>
+                      <li style={{ paddingLeft: '2px' }}>Se cerchi passaggio e non trovi ancora un viaggio adatto, clicca <strong>“Cerco passaggio”</strong>.</li>
+                      <li style={{ paddingLeft: '2px' }}>Compila più dettagli possibili: città di partenza, orari, possibili tappe, posti, vibe, esigenze, budget e contatti.</li>
+                      <li style={{ paddingLeft: '2px' }}>Più informazioni lasci, più è facile aggiustare il tiro e creare match sensati.</li>
+                      <li style={{ paddingLeft: '2px' }}>Inserire più tappe o zone dove potresti farti trovare aumenta le possibilità di matchare con persone sulla strada e dividere meglio le spese.</li>
+                      <li style={{ paddingLeft: '2px' }}>Dopo la moderazione, se il match ha senso, viene creata o sbloccata una crew Telegram per organizzarvi meglio.</li>
+                      <li style={{ paddingLeft: '2px' }}>Lascia contatti corretti: servono per creare davvero il gruppo e non perdere persone per strada.</li>
                     </ol>
                   </div>
 
                   <p style={{ margin: 0, fontSize: '12.5px', textAlign: 'center', opacity: 0.8, fontStyle: 'italic' }}>
                     È una prima beta: più la usate, più capiamo come migliorarla.
+                  </p>
+
+                  <p style={{ margin: 0, fontSize: '11px', textAlign: 'center', opacity: 0.6, fontStyle: 'italic' }}>
+                    Road to WAO non organizza viaggi, non gestisce pagamenti e non garantisce passaggi: aiuta solo la community a trovarsi meglio.
                   </p>
                 </div>
 
