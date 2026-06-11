@@ -1,4 +1,12 @@
 import { useState, useEffect } from 'react';
+import { 
+  signUpWithEmail, 
+  signInWithEmail, 
+  signOut, 
+  getCurrentSession, 
+  getCurrentProfile, 
+  upsertProfileLite 
+} from '../services/roadToWaoDb';
 
 // Stable key helper function
 function getEntryKey(entry, index) {
@@ -17,31 +25,226 @@ export default function ProfilePanel({
   onNavigateToBacheca, 
   onOpenControlRoom 
 }) {
-  const profile = userProfile;
+  const [session, setSession] = useState(null);
+  const [supabaseProfile, setSupabaseProfile] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  
+  // Auth Form State
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  
+  // Feedback Messages
+  const [message, setMessage] = useState({ type: '', text: '' }); // type: 'success' | 'error'
+
+  // Profile Form State
+  const [profileForm, setProfileForm] = useState({
+    nickname: '',
+    departure_city: '',
+    role: 'seeker',
+    is_of_age: false,
+    telegram_username: '',
+    instagram_username: ''
+  });
 
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ ...profile });
 
   useEffect(() => {
-    setEditForm({ ...profile });
-  }, [profile]);
+    async function initAuth() {
+      setAuthLoading(true);
+      const { data: sessionData, error: sessionError } = await getCurrentSession();
+      if (sessionError) {
+        console.error('Session error:', sessionError);
+      }
+      
+      const currentSession = sessionData?.session;
+      setSession(currentSession);
+      
+      if (currentSession) {
+        const { data: profileData, error: profileError } = await getCurrentProfile();
+        if (profileError) {
+          console.error('Profile load error:', profileError);
+          setMessage({ type: 'error', text: 'Errore nel caricamento del profilo.' });
+        } else if (profileData) {
+          setSupabaseProfile(profileData);
+          setProfileForm({
+            nickname: profileData.nickname || '',
+            departure_city: profileData.departure_city || '',
+            role: profileData.role || 'seeker',
+            is_of_age: !!profileData.is_of_age,
+            telegram_username: profileData.telegram_username || '',
+            instagram_username: profileData.instagram_username || ''
+          });
+        }
+      }
+      setAuthLoading(false);
+    }
+    
+    initAuth();
+  }, []);
 
-  const handleEditChange = (e) => {
-    const { name, value } = e.target;
-    setEditForm(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleSave = (e) => {
+  const handleSignIn = async (e) => {
     e.preventDefault();
-    if (!editForm.nickname.trim()) return;
-    onUpdateProfile(editForm);
-    setIsEditing(false);
+    if (!email || !password) {
+      setMessage({ type: 'error', text: 'Inserisci email e password.' });
+      return;
+    }
+    setAuthLoading(true);
+    setMessage({ type: '', text: '' });
+    
+    const { data, error } = await signInWithEmail(email, password);
+    if (error) {
+      setMessage({ type: 'error', text: `Errore: ${error.message}` });
+      setAuthLoading(false);
+      return;
+    }
+    
+    const activeSession = data?.session;
+    setSession(activeSession);
+    
+    if (activeSession) {
+      const { data: profileData, error: profileError } = await getCurrentProfile();
+      if (profileError) {
+        setMessage({ type: 'error', text: 'Sessione aperta, ma errore nel caricamento del profilo.' });
+      } else if (profileData) {
+        setSupabaseProfile(profileData);
+        setProfileForm({
+          nickname: profileData.nickname || '',
+          departure_city: profileData.departure_city || '',
+          role: profileData.role || 'seeker',
+          is_of_age: !!profileData.is_of_age,
+          telegram_username: profileData.telegram_username || '',
+          instagram_username: profileData.instagram_username || ''
+        });
+        setMessage({ type: 'success', text: 'Accesso effettuato con successo!' });
+      } else {
+        setSupabaseProfile(null);
+        setProfileForm({
+          nickname: '',
+          departure_city: '',
+          role: 'seeker',
+          is_of_age: false,
+          telegram_username: '',
+          instagram_username: ''
+        });
+        setMessage({ type: 'success', text: 'Accesso effettuato! Crea ora il tuo profilo.' });
+      }
+    }
+    setAuthLoading(false);
   };
 
-  const handleCancel = () => {
-    setEditForm({ ...profile });
-    setIsEditing(false);
+  const handleSignUp = async (e) => {
+    e.preventDefault();
+    if (!email || !password) {
+      setMessage({ type: 'error', text: 'Inserisci email e password.' });
+      return;
+    }
+    setAuthLoading(true);
+    setMessage({ type: '', text: '' });
+    
+    const { data, error } = await signUpWithEmail(email, password);
+    if (error) {
+      setMessage({ type: 'error', text: `Errore: ${error.message}` });
+      setAuthLoading(false);
+      return;
+    }
+    
+    const activeSession = data?.session;
+    if (activeSession) {
+      setSession(activeSession);
+      setSupabaseProfile(null);
+      setProfileForm({
+        nickname: '',
+        departure_city: '',
+        role: 'seeker',
+        is_of_age: false,
+        telegram_username: '',
+        instagram_username: ''
+      });
+      setMessage({ type: 'success', text: 'Profilo creato con successo! Completa i dati qui sotto.' });
+    } else {
+      setMessage({ type: 'success', text: 'Registrazione effettuata! Controlla la tua email per confermare l\'account.' });
+    }
+    setAuthLoading(false);
   };
+
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    if (!profileForm.nickname.trim()) {
+      setMessage({ type: 'error', text: 'Il nickname è obbligatorio.' });
+      return;
+    }
+    if (!profileForm.is_of_age) {
+      setMessage({ type: 'error', text: 'Devi confermare di avere almeno 18 anni.' });
+      return;
+    }
+    
+    setAuthLoading(true);
+    setMessage({ type: '', text: '' });
+    
+    const payload = {
+      nickname: profileForm.nickname.trim(),
+      departure_city: profileForm.departure_city.trim() || null,
+      role: profileForm.role,
+      is_of_age: profileForm.is_of_age,
+      telegram_username: profileForm.telegram_username.trim() || null,
+      instagram_username: profileForm.instagram_username.trim() || null
+    };
+    
+    const { data, error } = await upsertProfileLite(payload);
+    if (error) {
+      setMessage({ type: 'error', text: `Errore nel salvataggio: ${error.message}` });
+    } else {
+      setSupabaseProfile(data);
+      setIsEditing(false);
+      if (onUpdateProfile) {
+        onUpdateProfile({
+          nickname: data.nickname,
+          departureCity: data.departure_city || '',
+          vibe: data.role || '',
+          badge: data.role || 'user',
+          status: data.is_of_age ? 'Maggiorenne' : 'Minorenne'
+        });
+      }
+      setMessage({ type: 'success', text: 'Profilo salvato con successo!' });
+    }
+    setAuthLoading(false);
+  };
+
+  const handleSignOut = async () => {
+    setAuthLoading(true);
+    setMessage({ type: '', text: '' });
+    
+    const { error } = await signOut();
+    if (error) {
+      setMessage({ type: 'error', text: `Errore durante il logout: ${error.message}` });
+    } else {
+      setSession(null);
+      setSupabaseProfile(null);
+      setEmail('');
+      setPassword('');
+      setProfileForm({
+        nickname: '',
+        departure_city: '',
+        role: 'seeker',
+        is_of_age: false,
+        telegram_username: '',
+        instagram_username: ''
+      });
+      setMessage({ type: 'success', text: 'Disconnesso con successo.' });
+    }
+    setAuthLoading(false);
+  };
+
+  const profile = supabaseProfile ? {
+    nickname: supabaseProfile.nickname,
+    badge: supabaseProfile.is_admin ? 'Admin' : (supabaseProfile.role || 'User'),
+    status: supabaseProfile.is_of_age ? 'Maggiorenne' : 'Minorenne',
+    departureCity: supabaseProfile.departure_city || '',
+    vibe: supabaseProfile.role || '',
+    ...supabaseProfile
+  } : userProfile;
+
+  const needsProfileCreation = session && !supabaseProfile;
 
   const hasNewModelData = (joinRequests && joinRequests.length > 0) || (generalRequests && generalRequests.length > 0);
 
@@ -69,8 +272,8 @@ export default function ProfilePanel({
 
   // Compute user driver rides
   const userDriverRides = (rides || []).filter(ride => {
-    if (!userProfile?.nickname) return false;
-    const nick = userProfile.nickname;
+    if (!profile?.nickname) return false;
+    const nick = profile.nickname;
     return ride.ownerNickname === nick || ride.createdBy === nick || ride.driver === nick;
   });
 
@@ -78,7 +281,7 @@ export default function ProfilePanel({
     if (req.type !== 'offer') return false;
     return userDriverRides.some(ride => {
       const driverMatches = ride.driver === req.nickname || 
-                            ride.driver === userProfile?.nickname || 
+                            ride.driver === profile?.nickname || 
                             ride.createdBy === req.nickname ||
                             ride.ownerNickname === req.nickname;
       const departureMatches = ride.departureCity === req.departure || 
@@ -212,11 +415,238 @@ export default function ProfilePanel({
       </header>
 
       {/* Main Profile Info Card or Edit Form */}
-      <div className="ride-card card-pending-gold" style={{ position: 'relative' }}>
+      <div className="ride-card card-pending-gold" style={{ position: 'relative', padding: '20px' }}>
         <div className="ride-card-glow-gold" aria-hidden="true"></div>
 
-        {!isEditing ? (
-          /* 1. Header profilo leggero */
+        {authLoading && !session && (
+          <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
+            Caricamento sessione...
+          </div>
+        )}
+
+        {!authLoading && !session && (
+          /* Auth Form when not logged in */
+          <form style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '8px' }}>
+              <h3 className="wao-display" style={{ fontSize: '14px', margin: 0, color: 'var(--amber-gold)' }}>
+                Accedi o Registrati
+              </h3>
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+                Identificati per proporre un viaggio o richiedere un passaggio.
+              </p>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="auth-email" style={{ fontSize: '9px' }}>Email</label>
+              <input
+                type="email"
+                id="auth-email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="form-input"
+                style={{ padding: '8px 10px', fontSize: '12px' }}
+                placeholder="la_tua_email@example.com"
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="auth-password" style={{ fontSize: '9px' }}>Password</label>
+              <input
+                type="password"
+                id="auth-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="form-input"
+                style={{ padding: '8px 10px', fontSize: '12px' }}
+                placeholder="••••••••"
+                required
+              />
+            </div>
+
+            {message.text && (
+              <div style={{
+                padding: '8px 12px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                color: message.type === 'error' ? 'var(--solar-orange)' : 'var(--turquoise)',
+                background: message.type === 'error' ? 'rgba(255, 106, 0, 0.1)' : 'rgba(42, 242, 224, 0.1)',
+                border: `1px solid ${message.type === 'error' ? 'rgba(255, 106, 0, 0.2)' : 'rgba(42, 242, 224, 0.2)'}`
+              }}>
+                {message.text}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+              <button
+                type="button"
+                className="wao-primary-button wao-display"
+                onClick={handleSignIn}
+                style={{ padding: '8px 14px', fontSize: '11px', flex: 1 }}
+              >
+                Accedi
+              </button>
+              <button
+                type="button"
+                className="wao-secondary-button wao-display"
+                onClick={handleSignUp}
+                style={{ padding: '8px 14px', fontSize: '11px', flex: 1, borderColor: 'var(--amber-gold)', color: 'var(--amber-gold)' }}
+              >
+                Crea profilo
+              </button>
+            </div>
+          </form>
+        )}
+
+        {session && (needsProfileCreation || isEditing) && (
+          /* Profile Edit / Creation Form */
+          <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '8px' }}>
+              <h3 className="wao-display" style={{ fontSize: '14px', margin: 0, color: 'var(--amber-gold)' }}>
+                {needsProfileCreation ? 'Completa il tuo profilo leggero' : 'Modifica profilo leggero'}
+              </h3>
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+                I tuoi dati social non saranno visibili pubblicamente, ma solo sbloccati per la crew a join approvata.
+              </p>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="profile-nickname" style={{ fontSize: '9px' }}>Nickname *</label>
+              <input
+                type="text"
+                id="profile-nickname"
+                value={profileForm.nickname}
+                onChange={(e) => setProfileForm(prev => ({ ...prev, nickname: e.target.value }))}
+                className="form-input"
+                style={{ padding: '8px 10px', fontSize: '12px' }}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="profile-departure" style={{ fontSize: '9px' }}>Città di partenza</label>
+              <input
+                type="text"
+                id="profile-departure"
+                value={profileForm.departure_city}
+                onChange={(e) => setProfileForm(prev => ({ ...prev, departure_city: e.target.value }))}
+                className="form-input"
+                style={{ padding: '8px 10px', fontSize: '12px' }}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="profile-role" style={{ fontSize: '9px' }}>Cosa cerchi / offri?</label>
+              <select
+                id="profile-role"
+                value={profileForm.role}
+                onChange={(e) => setProfileForm(prev => ({ ...prev, role: e.target.value }))}
+                className="form-input"
+                style={{ 
+                  padding: '8px 10px', 
+                  fontSize: '12px',
+                  background: 'rgba(14, 13, 38, 0.8)',
+                  color: 'var(--text-main)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: '6px'
+                }}
+              >
+                <option value="seeker">Cerco un passaggio (Seeker)</option>
+                <option value="driver">Offro un passaggio (Driver)</option>
+                <option value="both">Entrambi (Seeker & Driver)</option>
+              </select>
+            </div>
+
+            <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+              <input
+                type="checkbox"
+                id="profile-age"
+                checked={profileForm.is_of_age}
+                onChange={(e) => setProfileForm(prev => ({ ...prev, is_of_age: e.target.checked }))}
+                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+              />
+              <label className="form-label" htmlFor="profile-age" style={{ fontSize: '12px', cursor: 'pointer', margin: 0 }}>
+                Confermo di avere almeno 18 anni *
+              </label>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="profile-telegram" style={{ fontSize: '9px' }}>Username Telegram (opzionale)</label>
+              <input
+                type="text"
+                id="profile-telegram"
+                value={profileForm.telegram_username}
+                onChange={(e) => setProfileForm(prev => ({ ...prev, telegram_username: e.target.value }))}
+                className="form-input"
+                style={{ padding: '8px 10px', fontSize: '12px' }}
+                placeholder="@username"
+              />
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Non sarà mostrato nella board pubblica.</span>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="profile-instagram" style={{ fontSize: '9px' }}>Username Instagram (opzionale)</label>
+              <input
+                type="text"
+                id="profile-instagram"
+                value={profileForm.instagram_username}
+                onChange={(e) => setProfileForm(prev => ({ ...prev, instagram_username: e.target.value }))}
+                className="form-input"
+                style={{ padding: '8px 10px', fontSize: '12px' }}
+                placeholder="username"
+              />
+            </div>
+
+            {message.text && (
+              <div style={{
+                padding: '8px 12px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                color: message.type === 'error' ? 'var(--solar-orange)' : 'var(--turquoise)',
+                background: message.type === 'error' ? 'rgba(255, 106, 0, 0.1)' : 'rgba(42, 242, 224, 0.1)',
+                border: `1px solid ${message.type === 'error' ? 'rgba(255, 106, 0, 0.2)' : 'rgba(42, 242, 224, 0.2)'}`
+              }}>
+                {message.text}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+              <button
+                type="submit"
+                className="wao-primary-button wao-display"
+                style={{ padding: '8px 14px', fontSize: '11px', flex: 1 }}
+                disabled={authLoading}
+              >
+                Salva
+              </button>
+              {!needsProfileCreation && (
+                <button
+                  type="button"
+                  className="wao-cancel-button wao-display"
+                  onClick={() => {
+                    if (supabaseProfile) {
+                      setProfileForm({
+                        nickname: supabaseProfile.nickname || '',
+                        departure_city: supabaseProfile.departure_city || '',
+                        role: supabaseProfile.role || 'seeker',
+                        is_of_age: !!supabaseProfile.is_of_age,
+                        telegram_username: supabaseProfile.telegram_username || '',
+                        instagram_username: supabaseProfile.instagram_username || ''
+                      });
+                    }
+                    setIsEditing(false);
+                  }}
+                  style={{ padding: '8px 14px', fontSize: '11px', flex: 1 }}
+                >
+                  Annulla
+                </button>
+              )}
+            </div>
+          </form>
+        )}
+
+        {session && !needsProfileCreation && !isEditing && (
+          /* Profile Detail View Mode when logged in */
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
               <div className="profile-avatar-orb" style={{ flexShrink: 0 }}>
@@ -231,7 +661,7 @@ export default function ProfilePanel({
                   {profile.nickname}
                 </h2>
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px', flexWrap: 'wrap' }}>
-                  <span className="ride-badge badge-pending-gold" style={{ fontSize: '9px', padding: '1px 6px' }}>
+                  <span className="ride-badge badge-pending-gold" style={{ fontSize: '9px', padding: '1px 6px', textTransform: 'capitalize' }}>
                     {profile.badge}
                   </span>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>• {profile.status}</span>
@@ -239,25 +669,44 @@ export default function ProfilePanel({
               </div>
             </div>
 
-            {/* Departure and Vibe */}
             <div style={{ 
               display: 'flex', 
-              flexWrap: 'wrap', 
-              gap: '16px', 
+              flexDirection: 'column',
+              gap: '8px', 
               fontSize: '12.5px', 
               color: 'var(--text-soft)', 
               borderTop: '1px solid rgba(255, 255, 255, 0.05)', 
               paddingTop: '10px' 
             }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                📍 Partenza: <strong style={{ color: 'var(--text-main)' }}>{profile.departureCity}</strong>
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                ✨ Vibe: <strong style={{ color: 'var(--text-main)' }}>{profile.vibe}</strong>
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                📍 Partenza: <strong style={{ color: 'var(--text-main)' }}>{profile.departureCity || 'Non specificata'}</strong>
+              </div>
+              {profile.telegram_username && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  💬 Telegram: <strong style={{ color: 'var(--text-main)' }}>{profile.telegram_username}</strong>
+                </div>
+              )}
+              {profile.instagram_username && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  📸 Instagram: <strong style={{ color: 'var(--text-main)' }}>{profile.instagram_username}</strong>
+                </div>
+              )}
             </div>
 
-            {/* Edit / Control Room CTAs */}
+            {message.text && (
+              <div style={{
+                padding: '8px 12px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                color: message.type === 'error' ? 'var(--solar-orange)' : 'var(--turquoise)',
+                background: message.type === 'error' ? 'rgba(255, 106, 0, 0.1)' : 'rgba(42, 242, 224, 0.1)',
+                border: `1px solid ${message.type === 'error' ? 'rgba(255, 106, 0, 0.2)' : 'rgba(42, 242, 224, 0.2)'}`,
+                marginTop: '6px'
+              }}>
+                {message.text}
+              </div>
+            )}
+
             <div style={{ marginTop: '6px', display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: '10px' }}>
               <button
                 type="button"
@@ -273,88 +722,19 @@ export default function ProfilePanel({
                 onClick={() => setIsEditing(true)}
                 style={{ padding: '6px 12px', fontSize: '10.5px', width: 'auto' }}
               >
-                Modifica profilo demo
-              </button>
-            </div>
-          </div>
-        ) : (
-          /* Edit Mode Form */
-          <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '8px' }}>
-              <h3 className="wao-display" style={{ fontSize: '13px', margin: 0, color: 'var(--amber-gold)' }}>Modifica Profilo Demo</h3>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label" htmlFor="profile-nickname" style={{ fontSize: '9px' }}>Nickname</label>
-              <input
-                type="text"
-                id="profile-nickname"
-                name="nickname"
-                value={editForm.nickname}
-                onChange={handleEditChange}
-                className="form-input"
-                style={{ padding: '8px 10px', fontSize: '12px' }}
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label" htmlFor="profile-departureCity" style={{ fontSize: '9px' }}>Città di partenza</label>
-              <input
-                type="text"
-                id="profile-departureCity"
-                name="departureCity"
-                value={editForm.departureCity}
-                onChange={handleEditChange}
-                className="form-input"
-                style={{ padding: '8px 10px', fontSize: '12px' }}
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label" htmlFor="profile-vibe" style={{ fontSize: '9px' }}>Vibe viaggio</label>
-              <input
-                type="text"
-                id="profile-vibe"
-                name="vibe"
-                value={editForm.vibe}
-                onChange={handleEditChange}
-                className="form-input"
-                style={{ padding: '8px 10px', fontSize: '12px' }}
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label" htmlFor="profile-status" style={{ fontSize: '9px' }}>Stato festival</label>
-              <input
-                type="text"
-                id="profile-status"
-                name="status"
-                value={editForm.status}
-                onChange={handleEditChange}
-                className="form-input"
-                style={{ padding: '8px 10px', fontSize: '12px' }}
-              />
-            </div>
-
-            <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-              <button
-                type="submit"
-                className="wao-primary-button wao-display"
-                style={{ padding: '8px 14px', fontSize: '11px', flex: 1 }}
-              >
-                Salva
+                Modifica profilo
               </button>
               <button
                 type="button"
                 className="wao-cancel-button wao-display"
-                onClick={handleCancel}
-                style={{ padding: '8px 14px', fontSize: '11px', flex: 1 }}
+                onClick={handleSignOut}
+                style={{ padding: '6px 12px', fontSize: '10.5px', width: 'auto' }}
+                disabled={authLoading}
               >
-                Annulla
+                Disconnetti
               </button>
             </div>
-          </form>
+          </div>
         )}
       </div>
 
