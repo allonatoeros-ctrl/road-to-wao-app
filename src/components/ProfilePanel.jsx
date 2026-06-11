@@ -7,7 +7,8 @@ import {
   getCurrentProfile, 
   upsertProfileLite,
   resetPasswordForEmail,
-  updatePasswordForCurrentUser
+  updatePasswordForCurrentUser,
+  exchangeRecoveryCodeForSession
 } from '../services/roadToWaoDb';
 
 // Stable key helper function
@@ -59,7 +60,7 @@ export default function ProfilePanel({
     if (typeof window === 'undefined') return false;
     const urlBits = `${window.location.hash || ''} ${window.location.search || ''}`;
     const recoveryPending = window.localStorage.getItem('road_to_wao_password_recovery_pending') === 'true';
-    return urlBits.includes('type=recovery') || (urlBits.includes('code=') && recoveryPending);
+    return urlBits.includes('mode=password_recovery') || urlBits.includes('type=recovery') || (urlBits.includes('code=') && recoveryPending);
   };
 
   useEffect(() => {
@@ -75,6 +76,13 @@ export default function ProfilePanel({
   useEffect(() => {
     async function initAuth() {
       setAuthLoading(true);
+
+      const recoveryMode = isPasswordRecoveryUrl();
+
+      if (recoveryMode) {
+        await exchangeRecoveryCodeForSession();
+      }
+
       const { data: sessionData, error: sessionError } = await getCurrentSession();
       if (sessionError) {
         console.error('Session error:', sessionError);
@@ -83,7 +91,7 @@ export default function ProfilePanel({
       const currentSession = sessionData?.session;
       setSession(currentSession);
 
-      if (isPasswordRecoveryUrl()) {
+      if (recoveryMode) {
         setAuthMode('reset-update');
         setMessage({
           type: 'success',
@@ -826,7 +834,7 @@ export default function ProfilePanel({
           </form>
         )}
 
-        {session && (needsProfileCreation || isEditing) && (
+        {session && authMode !== 'reset-update' && (needsProfileCreation || isEditing) && (
           /* Profile Edit / Creation Form */
           <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '8px' }}>
@@ -988,7 +996,7 @@ export default function ProfilePanel({
           </form>
         )}
 
-        {session && !needsProfileCreation && !isEditing && (
+        {session && authMode !== 'reset-update' && !needsProfileCreation && !isEditing && (
           /* Profile Detail View Mode when logged in */
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>

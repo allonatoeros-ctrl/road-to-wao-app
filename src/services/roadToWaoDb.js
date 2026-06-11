@@ -97,7 +97,7 @@ export async function resetPasswordForEmail(email) {
     return { data: null, error: new Error('Email is required') };
   }
   try {
-    const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined;
+    const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/?mode=password_recovery` : undefined;
     const { data, error } = await supabase.auth.resetPasswordForEmail(
       email,
       redirectTo ? { redirectTo } : undefined
@@ -121,6 +121,25 @@ export async function updatePasswordForCurrentUser(newPassword) {
   }
   try {
     const { data, error } = await supabase.auth.updateUser({ password: newPassword });
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+/**
+ * Exchanges a password recovery auth code for a Supabase session.
+ * Table: None (handled by auth.exchangeCodeForSession())
+ */
+export async function exchangeRecoveryCodeForSession() {
+  if (!isSupabaseConfigured) {
+    return { data: null, error: new Error('Supabase is not configured') };
+  }
+  if (typeof window === 'undefined' || !window.location.href.includes('code=')) {
+    return { data: null, error: null };
+  }
+  try {
+    const { data, error } = await supabase.auth.exchangeCodeForSession(window.location.href);
     return { data, error };
   } catch (error) {
     return { data: null, error };

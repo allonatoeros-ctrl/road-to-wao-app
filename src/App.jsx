@@ -119,13 +119,14 @@ function App() {
       ? `${window.location.hash || ''} ${window.location.search || ''}`
       : '';
 
+    const hasRecoveryMode = recoveryUrl.includes('mode=password_recovery');
     const hasRecoveryType = recoveryUrl.includes('type=recovery');
     const hasAuthCode = recoveryUrl.includes('code=');
     const recoveryPending = typeof window !== 'undefined'
       ? window.localStorage.getItem('road_to_wao_password_recovery_pending') === 'true'
       : false;
 
-    if (hasRecoveryType || (hasAuthCode && recoveryPending)) {
+    if (hasRecoveryMode || hasRecoveryType || (hasAuthCode && recoveryPending)) {
       setCurrentTab('profilo');
       setPasswordRecoveryMode(true);
     }
