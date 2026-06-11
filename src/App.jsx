@@ -106,6 +106,7 @@ function App() {
   const [rides, setRides] = useState(INITIAL_RIDES);
   const [authBannerMessage, setAuthBannerMessage] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
+  const [passwordRecoveryMode, setPasswordRecoveryMode] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
   const attemptedFetchRef = useRef(new Set());
@@ -120,6 +121,7 @@ function App() {
 
     if (recoveryUrl) {
       setCurrentTab('profilo');
+      setPasswordRecoveryMode(true);
     }
 
     getCurrentUser().then(({ data }) => {
@@ -130,6 +132,7 @@ function App() {
       setCurrentUser(session?.user || null);
       if (event === 'PASSWORD_RECOVERY') {
         setCurrentTab('profilo');
+        setPasswordRecoveryMode(true);
       }
     });
 

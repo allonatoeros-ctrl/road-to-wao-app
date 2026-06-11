@@ -26,7 +26,8 @@ export default function ProfilePanel({
   onUpdateProfile, 
   onNavigateToBacheca, 
   onOpenControlRoom,
-  isAdmin = false
+  isAdmin = false,
+  forcePasswordRecovery = false
 }) {
   const [session, setSession] = useState(null);
   const [supabaseProfile, setSupabaseProfile] = useState(null);
@@ -58,6 +59,16 @@ export default function ProfilePanel({
     if (typeof window === 'undefined') return false;
     return `${window.location.hash || ''} ${window.location.search || ''}`.includes('type=recovery');
   };
+
+  useEffect(() => {
+    if (forcePasswordRecovery) {
+      setAuthMode('reset-update');
+      setMessage({
+        type: 'success',
+        text: 'Link di recupero riconosciuto. Imposta una nuova password.'
+      });
+    }
+  }, [forcePasswordRecovery]);
 
   useEffect(() => {
     async function initAuth() {
