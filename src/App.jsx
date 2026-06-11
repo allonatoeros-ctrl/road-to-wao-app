@@ -870,7 +870,15 @@ function App() {
 
   return (
     <CosmicAppShell>
-      <div className="road-to-wao-root">
+      <div className={`road-to-wao-root tab-${currentTab}`}>
+        {currentTab !== 'casa' && (
+          <div className="wao-internal-ambient-bg" aria-hidden="true">
+            <div className="wao-ambient-glow solar"></div>
+            <div className="wao-ambient-glow cosmic"></div>
+            <div className="wao-ambient-glow turquoise"></div>
+            <div className="wao-ambient-starfield"></div>
+          </div>
+        )}
         {authBannerMessage && (
           <div className="auth-banner" style={{
             background: 'linear-gradient(135deg, rgba(255, 106, 0, 0.25), rgba(255, 197, 71, 0.2))',
