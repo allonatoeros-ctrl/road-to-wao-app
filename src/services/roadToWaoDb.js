@@ -81,6 +81,25 @@ export async function signOut() {
 }
 
 /**
+ * Sends a password reset email.
+ * Table: None (handled by auth.resetPasswordForEmail())
+ */
+export async function resetPasswordForEmail(email) {
+  if (!isSupabaseConfigured) {
+    return { data: null, error: new Error('Supabase is not configured') };
+  }
+  if (!email) {
+    return { data: null, error: new Error('Email is required') };
+  }
+  try {
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email);
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+/**
  * Fetches the user profile linked to the authenticated user ID, merging public and private fields.
  * Table: profiles, profile_secrets
  */
