@@ -12,7 +12,7 @@
 # Error details
 
 ```
-Error: locator.fill: Test ended.
+Error: locator.fill: Target page, context or browser has been closed
 Call log:
   - waiting for locator('#offer-nickname')
 
@@ -49,7 +49,7 @@ Call log:
   26  | 
   27  |     // Fill out the OfferRideModal
 > 28  |     await page.locator('#offer-nickname').fill('Luca');
-      |                                           ^ Error: locator.fill: Test ended.
+      |                                           ^ Error: locator.fill: Target page, context or browser has been closed
   29  |     await page.locator('#offer-departureCity').fill('Milano');
   30  |     await page.locator('#offer-departureDate').fill('14 agosto');
   31  |     await page.locator('#offer-travelTime').selectOption('mattina');
