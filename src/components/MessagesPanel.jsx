@@ -15,7 +15,8 @@ export default function MessagesPanel({
   userProfile = {},
   onFindRide, 
   onOpenControlRoom, 
-  onArchiveRequest 
+  onArchiveRequest,
+  isAdmin = false
 }) {
   const [showArchived, setShowArchived] = useState(false);
   const [expandedIds, setExpandedIds] = useState({});
@@ -573,14 +574,16 @@ export default function MessagesPanel({
       <header className="board-header">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
           <h1 className="board-title wao-display" style={{ margin: 0 }}>Messaggi</h1>
-          <button 
-            type="button" 
-            className="wao-secondary-button wao-display"
-            onClick={onOpenControlRoom}
-            style={{ width: 'auto', padding: '6px 12px', fontSize: '10.5px', background: 'linear-gradient(135deg, rgba(255, 106, 0, 0.4), rgba(255, 197, 71, 0.2))', borderColor: 'rgba(255, 197, 71, 0.3)' }}
-          >
-            ⚙️ Control Room demo
-          </button>
+          {isAdmin && (
+            <button 
+              type="button" 
+              className="wao-secondary-button wao-display"
+              onClick={onOpenControlRoom}
+              style={{ width: 'auto', padding: '6px 12px', fontSize: '10.5px', background: 'linear-gradient(135deg, rgba(255, 106, 0, 0.4), rgba(255, 197, 71, 0.2))', borderColor: 'rgba(255, 197, 71, 0.3)' }}
+            >
+              ⚙️ Control Room demo
+            </button>
+          )}
         </div>
         <p className="board-subtitle" style={{ marginTop: '6px' }}>Gestisci le tue richieste di viaggio e i messaggi.</p>
       </header>

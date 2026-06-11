@@ -24,7 +24,8 @@ export default function ProfilePanel({
   userProfile, 
   onUpdateProfile, 
   onNavigateToBacheca, 
-  onOpenControlRoom 
+  onOpenControlRoom,
+  isAdmin = false
 }) {
   const [session, setSession] = useState(null);
   const [supabaseProfile, setSupabaseProfile] = useState(null);
@@ -298,7 +299,8 @@ export default function ProfilePanel({
           departureCity: data.departure_city || '',
           vibe: data.role || '',
           badge: data.role || 'user',
-          status: data.is_of_age ? 'Maggiorenne' : 'Minorenne'
+          status: data.is_of_age ? 'Maggiorenne' : 'Minorenne',
+          is_admin: data.is_admin
         });
       }
       setMessage({ type: 'success', text: 'Profilo salvato con successo!' });
@@ -893,14 +895,16 @@ export default function ProfilePanel({
             )}
 
             <div style={{ marginTop: '6px', display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: '10px' }}>
-              <button
-                type="button"
-                className="wao-secondary-button wao-display"
-                onClick={onOpenControlRoom}
-                style={{ padding: '6px 12px', fontSize: '10.5px', width: 'auto', background: 'linear-gradient(135deg, rgba(255, 106, 0, 0.4), rgba(255, 197, 71, 0.2))', borderColor: 'rgba(255, 197, 71, 0.3)' }}
-              >
-                ⚙️ Control Room demo
-              </button>
+              {isAdmin && (
+                <button
+                  type="button"
+                  className="wao-secondary-button wao-display"
+                  onClick={onOpenControlRoom}
+                  style={{ padding: '6px 12px', fontSize: '10.5px', width: 'auto', background: 'linear-gradient(135deg, rgba(255, 106, 0, 0.4), rgba(255, 197, 71, 0.2))', borderColor: 'rgba(255, 197, 71, 0.3)' }}
+                >
+                  ⚙️ Control Room demo
+                </button>
+              )}
               <button
                 type="button"
                 className="wao-secondary-button wao-display"

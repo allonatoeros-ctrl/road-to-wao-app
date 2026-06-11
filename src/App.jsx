@@ -106,6 +106,7 @@ function App() {
   const [rides, setRides] = useState(INITIAL_RIDES);
   const [authBannerMessage, setAuthBannerMessage] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const attemptedFetchRef = useRef(new Set());
   const lastUserRef = useRef(null);
@@ -131,6 +132,33 @@ function App() {
       lastUserRef.current = currentUser?.id || null;
     }
   }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser) {
+      setIsAdmin(false);
+      return;
+    }
+    let active = true;
+    getCurrentProfile().then(({ data }) => {
+      if (active) {
+        setIsAdmin(!!data?.is_admin);
+      }
+    }).catch((err) => {
+      console.error('Error checking admin status:', err);
+      if (active) {
+        setIsAdmin(false);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (currentTab === 'control-room' && !isAdmin) {
+      setCurrentTab('casa');
+    }
+  }, [currentTab, isAdmin]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -443,6 +471,9 @@ function App() {
       localStorage.setItem('wao_profile', JSON.stringify(next));
       return next;
     });
+    if (updated && updated.is_admin !== undefined) {
+      setIsAdmin(updated.is_admin);
+    }
   };
 
   const openJoinForRide = (ride) => {
@@ -759,6 +790,9 @@ function App() {
 
   // ── Desktop Control Room — renders OUTSIDE the mobile phone shell ──
   if (currentTab === 'control-room') {
+    if (!isAdmin) {
+      return null;
+    }
     return (
       <div className="desktop-admin-page">
         <AdminPanel {...adminPanelProps} />
@@ -924,6 +958,7 @@ function App() {
                 setJoinRequests(prev => prev.map(r => r.id === id ? { ...r, archived: true } : r));
                 setGeneralRequests(prev => prev.map(r => r.id === id ? { ...r, archived: true } : r));
               }}
+              isAdmin={isAdmin}
             />
           </div>
         )}
@@ -939,6 +974,7 @@ function App() {
               onUpdateProfile={handleUpdateProfile}
               onNavigateToBacheca={() => setCurrentTab('bacheca')} 
               onOpenControlRoom={() => setCurrentTab('control-room')}
+              isAdmin={isAdmin}
             />
           </div>
         )}
