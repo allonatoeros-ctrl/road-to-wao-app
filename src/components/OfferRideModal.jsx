@@ -93,10 +93,23 @@ export default function OfferRideModal({ userProfile, onClose, onSubmitOffer, on
                   id="offer-nickname"
                   name="nickname"
                   value={form.nickname}
-                  onChange={handleChange}
+                  onChange={(e) => {
+                    if (userProfile?.nickname) return;
+                    handleChange(e);
+                  }}
                   placeholder="Es. CosmicDriver"
                   className={`form-input ${errors.nickname ? 'input-error' : ''}`}
+                  readOnly={!!userProfile?.nickname}
+                  style={{
+                    opacity: userProfile?.nickname ? 0.72 : 1,
+                    cursor: userProfile?.nickname ? 'not-allowed' : 'text'
+                  }}
                 />
+                {userProfile?.nickname && (
+                  <span className="error-text" style={{ color: 'var(--text-muted)' }}>
+                    Nickname collegato al profilo.
+                  </span>
+                )}
                 {errors.nickname && <span className="error-text">Inserisci il tuo nickname</span>}
               </div>
 
