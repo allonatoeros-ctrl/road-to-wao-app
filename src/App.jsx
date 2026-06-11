@@ -113,12 +113,24 @@ function App() {
 
   useEffect(() => {
     if (!supabase) return;
+
+    const recoveryUrl = typeof window !== 'undefined'
+      ? `${window.location.hash || ''} ${window.location.search || ''}`.includes('type=recovery')
+      : false;
+
+    if (recoveryUrl) {
+      setCurrentTab('profilo');
+    }
+
     getCurrentUser().then(({ data }) => {
       setCurrentUser(data?.user || null);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setCurrentUser(session?.user || null);
+      if (event === 'PASSWORD_RECOVERY') {
+        setCurrentTab('profilo');
+      }
     });
 
     return () => {

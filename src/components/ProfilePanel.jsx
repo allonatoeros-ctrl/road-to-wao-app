@@ -6,7 +6,8 @@ import {
   getCurrentSession, 
   getCurrentProfile, 
   upsertProfileLite,
-  resetPasswordForEmail
+  resetPasswordForEmail,
+  updatePasswordForCurrentUser
 } from '../services/roadToWaoDb';
 
 // Stable key helper function
@@ -34,7 +35,9 @@ export default function ProfilePanel({
   // Auth Form State
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [authMode, setAuthMode] = useState('login'); // 'login' | 'signup' | 'reset'
+  const [authMode, setAuthMode] = useState('login'); // 'login' | 'signup' | 'reset' | 'reset-update'
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   
   // Feedback Messages
   const [message, setMessage] = useState({ type: '', text: '' }); // type: 'success' | 'error'
@@ -51,6 +54,11 @@ export default function ProfilePanel({
 
   const [isEditing, setIsEditing] = useState(false);
 
+  const isPasswordRecoveryUrl = () => {
+    if (typeof window === 'undefined') return false;
+    return `${window.location.hash || ''} ${window.location.search || ''}`.includes('type=recovery');
+  };
+
   useEffect(() => {
     async function initAuth() {
       setAuthLoading(true);
@@ -61,6 +69,14 @@ export default function ProfilePanel({
       
       const currentSession = sessionData?.session;
       setSession(currentSession);
+
+      if (isPasswordRecoveryUrl()) {
+        setAuthMode('reset-update');
+        setMessage({
+          type: 'success',
+          text: 'Link di recupero riconosciuto. Imposta una nuova password.'
+        });
+      }
       
       if (currentSession) {
         const { data: profileData, error: profileError } = await getCurrentProfile();
@@ -236,6 +252,48 @@ export default function ProfilePanel({
         text: 'Account creato. Controlla la tua email e conferma il link, poi torna qui e accedi.' 
       });
     }
+    setAuthLoading(false);
+  };
+
+  const handleUpdatePassword = async (e) => {
+    e.preventDefault();
+
+    if (!newPassword || newPassword.length < 8) {
+      setMessage({ type: 'error', text: 'La nuova password deve avere almeno 8 caratteri.' });
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setMessage({ type: 'error', text: 'Le password non coincidono.' });
+      return;
+    }
+
+    setAuthLoading(true);
+    setMessage({ type: '', text: '' });
+
+    const { error } = await updatePasswordForCurrentUser(newPassword);
+
+    if (error) {
+      setMessage({ type: 'error', text: `Errore aggiornamento password: ${error.message}` });
+      setAuthLoading(false);
+      return;
+    }
+
+    await signOut();
+    setSession(null);
+    setSupabaseProfile(null);
+    setNewPassword('');
+    setConfirmPassword('');
+    setAuthMode('login');
+
+    if (typeof window !== 'undefined' && window.history?.replaceState) {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+
+    setMessage({
+      type: 'success',
+      text: 'Password aggiornata. Ora accedi con la nuova password.'
+    });
     setAuthLoading(false);
   };
 
@@ -523,7 +581,70 @@ export default function ProfilePanel({
           </div>
         )}
 
-        {!authLoading && !session && (
+        {!authLoading && authMode === 'reset-update' && (
+          <form onSubmit={handleUpdatePassword} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '8px' }}>
+              <h3 className="wao-display" style={{ fontSize: '14px', margin: 0, color: 'var(--amber-gold)' }}>
+                Imposta nuova password
+              </h3>
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+                Inserisci una nuova password per completare il recupero account.
+              </p>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="new-password" style={{ fontSize: '9px' }}>Nuova password</label>
+              <input
+                type="password"
+                id="new-password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="form-input"
+                style={{ padding: '8px 10px', fontSize: '12px' }}
+                placeholder="Minimo 8 caratteri"
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="confirm-password" style={{ fontSize: '9px' }}>Conferma password</label>
+              <input
+                type="password"
+                id="confirm-password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="form-input"
+                style={{ padding: '8px 10px', fontSize: '12px' }}
+                placeholder="Ripeti la nuova password"
+                required
+              />
+            </div>
+
+            {message.text && (
+              <div style={{
+                padding: '8px 12px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                color: message.type === 'error' ? 'var(--solar-orange)' : 'var(--turquoise)',
+                background: message.type === 'error' ? 'rgba(255, 106, 0, 0.1)' : 'rgba(42, 242, 224, 0.1)',
+                border: `1px solid ${message.type === 'error' ? 'rgba(255, 106, 0, 0.2)' : 'rgba(42, 242, 224, 0.2)'}`
+              }}>
+                {message.text}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="wao-primary-button wao-display"
+              style={{ padding: '8px 14px', fontSize: '11px', width: '100%' }}
+              disabled={authLoading}
+            >
+              Aggiorna password
+            </button>
+          </form>
+        )}
+
+        {!authLoading && !session && authMode !== 'reset-update' && (
           /* Auth Form when not logged in */
           <form 
             onSubmit={

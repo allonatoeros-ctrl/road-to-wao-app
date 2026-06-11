@@ -109,6 +109,25 @@ export async function resetPasswordForEmail(email) {
 }
 
 /**
+ * Updates the password for the current password recovery session.
+ * Table: None (handled by auth.updateUser())
+ */
+export async function updatePasswordForCurrentUser(newPassword) {
+  if (!isSupabaseConfigured) {
+    return { data: null, error: new Error('Supabase is not configured') };
+  }
+  if (!newPassword) {
+    return { data: null, error: new Error('Password is required') };
+  }
+  try {
+    const { data, error } = await supabase.auth.updateUser({ password: newPassword });
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+/**
  * Fetches the user profile linked to the authenticated user ID, merging public and private fields.
  * Table: profiles, profile_secrets
  */
