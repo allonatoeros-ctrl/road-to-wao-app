@@ -104,6 +104,30 @@ function App() {
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [requests, setRequests] = useState([]);
   const [rides, setRides] = useState(INITIAL_RIDES);
+  const [authBannerMessage, setAuthBannerMessage] = useState('');
+
+  useEffect(() => {
+    if (currentTab !== 'profilo') {
+      setAuthBannerMessage('');
+    }
+  }, [currentTab]);
+
+  const requireAuthForAction = async (actionName, callback) => {
+    try {
+      const { data: userData, error: userError } = await getCurrentUser();
+      const user = userData?.user;
+      if (user && !userError) {
+        callback();
+      } else {
+        setCurrentTab('profilo');
+        setAuthBannerMessage('Accedi o crea il tuo profilo per partecipare alla crew.');
+      }
+    } catch (err) {
+      console.error(`Error in requireAuthForAction for ${actionName}:`, err);
+      setCurrentTab('profilo');
+      setAuthBannerMessage('Accedi o crea il tuo profilo per partecipare alla crew.');
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -344,13 +368,23 @@ function App() {
   };
 
   const openJoinForRide = (ride) => {
-    setSelectedRideForJoin(ride);
-    setJoinModalMode('ride');
+    requireAuthForAction('join_ride', () => {
+      setSelectedRideForJoin(ride);
+      setJoinModalMode('ride');
+    });
   };
 
   const openGeneralRequest = () => {
-    setSelectedRideForJoin(null);
-    setJoinModalMode('general');
+    requireAuthForAction('general_request', () => {
+      setSelectedRideForJoin(null);
+      setJoinModalMode('general');
+    });
+  };
+
+  const handleOpenOfferModal = () => {
+    requireAuthForAction('offer_ride', () => {
+      setShowOfferModal(true);
+    });
   };
 
   const closeJoinModal = () => {
@@ -464,7 +498,8 @@ function App() {
       const user = userData?.user;
 
       if (userError || !user) {
-        runLocalFlow();
+        // Unauthenticated users should not create local/demo requests
+        console.error('Unauthenticated request submission blocked');
         return;
       }
 
@@ -654,6 +689,48 @@ function App() {
   return (
     <CosmicAppShell>
       <div className="road-to-wao-root">
+        {authBannerMessage && (
+          <div className="auth-banner" style={{
+            background: 'linear-gradient(135deg, rgba(255, 106, 0, 0.25), rgba(255, 197, 71, 0.2))',
+            border: '1px solid rgba(255, 197, 71, 0.4)',
+            borderRadius: '12px',
+            padding: '12px 16px',
+            margin: '16px 16px 0 16px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '12px',
+            boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
+            backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
+            zIndex: 10
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '18px' }}>⚠️</span>
+              <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-main)', lineHeight: '1.4', fontWeight: '500' }}>
+                {authBannerMessage}
+              </p>
+            </div>
+            <button 
+              type="button" 
+              onClick={() => setAuthBannerMessage('')}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-soft)',
+                cursor: 'pointer',
+                fontSize: '16px',
+                padding: '4px',
+                lineHeight: '1',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
         {currentTab === 'casa' && (
           <>
             {/* Sfondo con Eclissi e Glow Solare Avanzato */}
@@ -722,7 +799,7 @@ function App() {
                   <button
                     type="button"
                     className="wao-secondary-button wao-display"
-                    onClick={() => setShowOfferModal(true)}
+                    onClick={handleOpenOfferModal}
                   >
                     Offri un posto
                   </button>
@@ -748,7 +825,7 @@ function App() {
             rides={rides}
             onJoinRide={openJoinForRide} 
             onGeneralRequest={openGeneralRequest}
-            onOfferRide={() => setShowOfferModal(true)} 
+            onOfferRide={handleOpenOfferModal} 
           />
         )}
 
@@ -845,7 +922,8 @@ function App() {
                 const { data: userData, error: userError } = await getCurrentUser();
                 const user = userData?.user;
                 if (userError || !user) {
-                  runLocalFlow();
+                  // Unauthenticated users should not create local/demo rides
+                  console.error('Unauthenticated ride submission blocked');
                   return;
                 }
 
