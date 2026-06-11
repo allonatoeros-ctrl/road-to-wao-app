@@ -301,6 +301,68 @@ export async function createRide(payload) {
 }
 
 /**
+ * Unlocks the private Telegram group link for a ride if the user is authorized.
+ * Access rules:
+ * 1. Require authenticated user.
+ * 2. Require a valid rideId.
+ * 3. User can unlock only if driver of the ride, approved passenger, or admin.
+ */
+export async function getUnlockedCrewForRide(rideId) {
+  if (!isSupabaseConfigured) {
+    return { data: null, error: new Error('Supabase is not configured') };
+  }
+  if (!rideId) {
+    return { data: null, error: new Error('Invalid ride ID') };
+  }
+  try {
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData?.user) {
+      return { data: null, error: userError || new Error('User is not authenticated') };
+    }
+    const userId = userData.user.id;
+
+    // Check permissions before querying ride_secrets
+    const [rideRes, joinRes, profileRes] = await Promise.all([
+      supabase.from('rides').select('driver_id').eq('id', rideId).maybeSingle(),
+      supabase.from('join_requests').select('id').eq('ride_id', rideId).eq('requester_id', userId).eq('status', 'approved').maybeSingle(),
+      supabase.from('profiles').select('is_admin').eq('id', userId).maybeSingle()
+    ]);
+
+    const isDriver = rideRes.data && rideRes.data.driver_id === userId;
+    const isApprovedPassenger = !!joinRes.data;
+    const isAdmin = profileRes.data && profileRes.data.is_admin === true;
+
+    if (!isDriver && !isApprovedPassenger && !isAdmin) {
+      return { data: null, error: new Error('Crew link not unlocked') };
+    }
+
+    // Since permission is granted, query ride_secrets
+    const { data: secretData, error: secretError } = await supabase
+      .from('ride_secrets')
+      .select('telegram_group_link')
+      .eq('ride_id', rideId)
+      .maybeSingle();
+
+    if (secretError) {
+      return { data: null, error: secretError };
+    }
+    if (!secretData) {
+      return { data: null, error: new Error('No crew link found for this ride') };
+    }
+
+    return {
+      data: {
+        ride_id: rideId,
+        telegram_group_link: secretData.telegram_group_link
+      },
+      error: null
+    };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+/**
  * Fetches all join requests (typically filtered by requester or driver).
  * Table: join_requests
  */
