@@ -703,11 +703,26 @@ export default function ProfilePanel({
                 type="text"
                 id="profile-nickname"
                 value={profileForm.nickname}
-                onChange={(e) => setProfileForm(prev => ({ ...prev, nickname: e.target.value }))}
+                onChange={(e) => {
+                  if (!needsProfileCreation) return;
+                  setProfileForm(prev => ({ ...prev, nickname: e.target.value }));
+                }}
                 className="form-input"
-                style={{ padding: '8px 10px', fontSize: '12px' }}
+                style={{
+                  padding: '8px 10px',
+                  fontSize: '12px',
+                  opacity: needsProfileCreation ? 1 : 0.72,
+                  cursor: needsProfileCreation ? 'text' : 'not-allowed'
+                }}
+                readOnly={!needsProfileCreation}
+                disabled={!needsProfileCreation}
                 required
               />
+              {!needsProfileCreation && (
+                <span className="error-text" style={{ color: 'var(--text-muted)' }}>
+                  Nickname collegato al profilo.
+                </span>
+              )}
             </div>
 
             <div className="form-group">
