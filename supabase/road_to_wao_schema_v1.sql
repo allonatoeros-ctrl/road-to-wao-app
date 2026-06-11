@@ -30,11 +30,19 @@ create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   nickname text not null,
   departure_city text,
-  telegram_username text,
-  instagram_username text,
   role text,
   is_of_age boolean not null,
   is_admin boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- TABLE: profile_secrets
+-- Secure private contact data for profiles, separating sensitive data (Telegram/Instagram username) from public browsing.
+create table public.profile_secrets (
+  id uuid primary key references public.profiles(id) on delete cascade,
+  telegram_username text not null,
+  instagram_username text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -50,7 +58,7 @@ create table public.rides (
   departure_date text,
   return_date text,
   seats_total integer not null check (seats_total > 0),
-  seats_available integer not null check (seats_available >= 0),
+  seats_available integer not null check (seats_available >= 0 and seats_available <= seats_total),
   departure_time_label text not null,
   vibe text,
   notes text,
@@ -94,7 +102,7 @@ create table public.general_requests (
   from_area text,
   people_count integer not null default 1 check (people_count > 0),
   message text,
-  status text not null default 'active' check (status in ('active', 'archived', 'cancelled')),
+  status text not null default 'pending' check (status in ('pending', 'reviewed', 'matched_manually', 'archived', 'cancelled')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -129,6 +137,10 @@ create trigger set_profiles_updated_at
   before update on public.profiles
   for each row execute function public.handle_updated_at();
 
+create trigger set_profile_secrets_updated_at
+  before update on public.profile_secrets
+  for each row execute function public.handle_updated_at();
+
 create trigger set_rides_updated_at
   before update on public.rides
   for each row execute function public.handle_updated_at();
@@ -154,7 +166,103 @@ begin
     where id = user_id and is_admin = true
   );
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = public;
+
+-- Prevent admin self-promotion during updates
+create or replace function public.check_profile_update()
+returns trigger as $$
+begin
+  if old.is_admin <> new.is_admin then
+    if not public.is_admin(auth.uid()) then
+      raise exception 'Only administrators can modify the is_admin status.';
+    end if;
+  end if;
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public;
+
+create trigger enforce_profile_admin_protection
+  before update on public.profiles
+  for each row execute function public.check_profile_update();
+
+-- Protect join_requests immutable fields from driver tampering
+create or replace function public.check_join_request_immutability()
+returns trigger as $$
+begin
+  if (old.requester_id <> new.requester_id) or
+     (old.ride_id <> new.ride_id) or
+     (old.seats_requested <> new.seats_requested) or
+     (old.message is distinct from new.message) then
+    
+    if not public.is_admin(auth.uid()) then
+      raise exception 'The fields requester_id, ride_id, seats_requested, and message are read-only after creation.';
+    end if;
+  end if;
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public;
+
+create trigger enforce_join_request_immutability
+  before update on public.join_requests
+  for each row execute function public.check_join_request_immutability();
+
+-- Handle automatic seats management on rides based on join requests
+create or replace function public.handle_join_request_seats()
+returns trigger as $$
+declare
+  v_seats_available integer;
+  v_seats_requested integer;
+begin
+  if TG_OP = 'INSERT' then
+    if new.status = 'approved' then
+      v_seats_requested := new.seats_requested;
+    else
+      v_seats_requested := 0;
+    end if;
+  elsif TG_OP = 'UPDATE' then
+    if old.status = 'approved' and new.status = 'approved' then
+      v_seats_requested := new.seats_requested - old.seats_requested;
+    elsif new.status = 'approved' then
+      v_seats_requested := new.seats_requested;
+    elsif old.status = 'approved' then
+      v_seats_requested := -old.seats_requested;
+    else
+      v_seats_requested := 0;
+    end if;
+  elsif TG_OP = 'DELETE' then
+    if old.status = 'approved' then
+      v_seats_requested := -old.seats_requested;
+    else
+      v_seats_requested := 0;
+    end if;
+  end if;
+
+  if v_seats_requested <> 0 then
+    select seats_available into v_seats_available
+    from public.rides
+    where id = coalesce(new.ride_id, old.ride_id);
+
+    if v_seats_requested > v_seats_available then
+      raise exception 'Insufficient available seats on this ride (Requested: %, Available: %).', 
+        v_seats_requested, v_seats_available;
+    end if;
+
+    update public.rides
+    set seats_available = seats_available - v_seats_requested
+    where id = coalesce(new.ride_id, old.ride_id);
+  end if;
+
+  if TG_OP = 'DELETE' then
+    return old;
+  else
+    return new;
+  end if;
+end;
+$$ language plpgsql security definer set search_path = public;
+
+create trigger sync_join_request_seats
+  after insert or update or delete on public.join_requests
+  for each row execute function public.handle_join_request_seats();
 
 -- ==========================================
 -- 3. ROW LEVEL SECURITY (RLS) POLICIES
@@ -162,6 +270,7 @@ $$ language plpgsql security definer;
 
 -- Enable Row Level Security on all tables
 alter table public.profiles enable row level security;
+alter table public.profile_secrets enable row level security;
 alter table public.rides enable row level security;
 alter table public.ride_secrets enable row level security;
 alter table public.join_requests enable row level security;
@@ -172,23 +281,16 @@ alter table public.moderation_events enable row level security;
 -- PROFILES POLICIES
 -- ------------------------------------------
 
-create policy "Allow users to read their own profile"
+create policy "Allow anyone to read profiles"
   on public.profiles
   for select
-  to authenticated
-  using (auth.uid() = id);
-
-create policy "Allow admins to read all profiles"
-  on public.profiles
-  for select
-  to authenticated
-  using (public.is_admin(auth.uid()));
+  using (true);
 
 create policy "Allow users to insert their own profile"
   on public.profiles
   for insert
   to authenticated
-  with check (auth.uid() = id);
+  with check (auth.uid() = id and is_admin = false);
 
 create policy "Allow users to update their own profile"
   on public.profiles
@@ -203,6 +305,59 @@ create policy "Allow admins to update all profiles"
   to authenticated
   using (public.is_admin(auth.uid()))
   with check (public.is_admin(auth.uid()));
+
+-- ------------------------------------------
+-- PROFILE SECRETS POLICIES
+-- ------------------------------------------
+
+create policy "Allow users to read their own profile secrets"
+  on public.profile_secrets
+  for select
+  to authenticated
+  using (auth.uid() = id);
+
+create policy "Allow admins to read all profile secrets"
+  on public.profile_secrets
+  for select
+  to authenticated
+  using (public.is_admin(auth.uid()));
+
+create policy "Allow connected users to read profile secrets"
+  on public.profile_secrets
+  for select
+  to authenticated
+  using (
+    -- Approved passenger reading driver contact
+    exists (
+      select 1 from public.join_requests jr
+      join public.rides r on jr.ride_id = r.id
+      where r.driver_id = profile_secrets.id 
+        and jr.requester_id = auth.uid() 
+        and jr.status = 'approved'
+    )
+    or
+    -- Driver reading approved passenger contact
+    exists (
+      select 1 from public.join_requests jr
+      join public.rides r on jr.ride_id = r.id
+      where jr.requester_id = profile_secrets.id 
+        and r.driver_id = auth.uid() 
+        and jr.status = 'approved'
+    )
+  );
+
+create policy "Allow users to insert their own profile secrets"
+  on public.profile_secrets
+  for insert
+  to authenticated
+  with check (auth.uid() = id);
+
+create policy "Allow users to update their own profile secrets"
+  on public.profile_secrets
+  for update
+  to authenticated
+  using (auth.uid() = id)
+  with check (auth.uid() = id);
 
 -- ------------------------------------------
 -- RIDES POLICIES
@@ -431,7 +586,6 @@ create policy "Allow admins to insert moderation events"
 
 -- Index foreign keys for faster joins
 create index idx_rides_driver_id on public.rides (driver_id);
-create index idx_ride_secrets_ride_id on public.ride_secrets (ride_id);
 create index idx_join_requests_ride_id on public.join_requests (ride_id);
 create index idx_join_requests_requester_id on public.join_requests (requester_id);
 create index idx_general_requests_requester_id on public.general_requests (requester_id);
@@ -441,3 +595,9 @@ create index idx_moderation_events_admin_id on public.moderation_events (admin_i
 create index idx_rides_status_visibility on public.rides (status, visibility);
 create index idx_join_requests_status on public.join_requests (status);
 create index idx_general_requests_status on public.general_requests (status);
+
+-- Composite index for fast lookup of approved/pending join requests
+create index idx_join_requests_lookup on public.join_requests (ride_id, requester_id, status);
+
+-- Unique index to prevent duplicate active join requests
+create unique index idx_join_requests_active_unique on public.join_requests (ride_id, requester_id) where (status in ('pending', 'approved'));
