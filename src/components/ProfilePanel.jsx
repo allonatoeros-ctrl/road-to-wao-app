@@ -73,6 +73,13 @@ export default function ProfilePanel({
     pendingJoinRequest = (joinRequests || []).find(r => r.status === 'pending' && !r.archived);
     activeGeneralRequest = (generalRequests || []).find(r => r.status === 'active' && !r.archived);
 
+    // Compute user driver rides
+    const userDriverRides = (rides || []).filter(ride => {
+      if (!userProfile?.nickname) return false;
+      const nick = userProfile.nickname;
+      return ride.ownerNickname === nick || ride.createdBy === nick || ride.driver === nick;
+    });
+
     if (approvedJoinRequest) {
       matchedRide = rides.find(rd => rd.id === approvedJoinRequest.rideId);
       currentTravelStatusText = 'Crew attiva';
@@ -83,6 +90,16 @@ export default function ProfilePanel({
       } else {
         travelStatusSubtitleText = 'Crew sbloccata';
       }
+    } else if (userDriverRides.length > 0) {
+      const firstDriverRide = userDriverRides[0];
+      currentTravelStatusText = 'Viaggio aperto come driver';
+      travelStatusColor = 'var(--turquoise)';
+      travelStatusBadge = firstDriverRide.status || 'open';
+      const route = `${firstDriverRide.departureCity} → ${firstDriverRide.destination || 'WAO'}`;
+      const date = firstDriverRide.departureDate;
+      const seats = `${firstDriverRide.seatsAvailable}/${firstDriverRide.seatsTotal}`;
+      const status = firstDriverRide.status;
+      travelStatusSubtitleText = `${route} · ${date} · Posti: ${seats} · Stato: ${status}`;
     } else if (pendingJoinRequest) {
       matchedRide = rides.find(rd => rd.id === pendingJoinRequest.rideId);
       currentTravelStatusText = 'Richiesta in approvazione';

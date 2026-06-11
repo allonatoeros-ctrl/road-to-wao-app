@@ -12,6 +12,7 @@ export default function MessagesPanel({
   rides = [], 
   joinRequests = [], 
   generalRequests = [], 
+  userProfile = {},
   onFindRide, 
   onOpenControlRoom, 
   onArchiveRequest 
@@ -24,6 +25,12 @@ export default function MessagesPanel({
   };
 
   const hasNewModelData = (joinRequests && joinRequests.length > 0) || (generalRequests && generalRequests.length > 0);
+
+  const userDriverRides = (rides || []).filter(ride => {
+    if (!userProfile?.nickname) return false;
+    const nick = userProfile.nickname;
+    return ride.ownerNickname === nick || ride.createdBy === nick || ride.driver === nick;
+  });
 
   // -------------------------------------------------------------
   // NEW MODEL LOGIC
@@ -583,6 +590,43 @@ export default function MessagesPanel({
       ) : (
         <div className="messages-list" style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
           
+          {/* Dedicated section/card for driver rides when the new model is active */}
+          {hasNewModelData && userDriverRides.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <h3 className="wao-display" style={{ fontSize: '13px', color: 'var(--turquoise)', letterSpacing: '0.05em', margin: '0 0 2px 0' }}>
+                Il tuo viaggio aperto
+              </h3>
+              {userDriverRides.map((ride, idx) => (
+                <div key={ride.id || idx} className="ride-card card-approved" style={{ padding: '12px 14px', position: 'relative' }}>
+                  <div className="ride-card-glow-approved" aria-hidden="true"></div>
+                  
+                  {/* Route */}
+                  <div className="wao-display" style={{ fontSize: '15px', color: 'var(--text-main)', textTransform: 'none', margin: '4px 0 6px 0' }}>
+                    {ride.departureCity} → {ride.destination || 'WAO'}
+                  </div>
+
+                  {/* Details */}
+                  <div style={{ 
+                    fontSize: '12px', 
+                    color: 'var(--text-soft)', 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    gap: '4px', 
+                    background: 'rgba(0, 0, 0, 0.25)', 
+                    padding: '8px 10px', 
+                    borderRadius: '8px' 
+                  }}>
+                    <div>Data partenza: <strong>{ride.departureDate}</strong></div>
+                    <div>Fascia oraria: <strong>{ride.travelTime}</strong></div>
+                    <div>Posti: <strong>{ride.seatsAvailable} / {ride.seatsTotal}</strong></div>
+                    {ride.luggageCapacity && <div>Spazio bagagli: <strong>{ride.luggageCapacity}</strong></div>}
+                    <div>Stato: <strong style={{ color: 'var(--turquoise)' }}>{ride.status === 'open' ? 'aperto' : (ride.status === 'full' ? 'completo' : ride.status)}</strong></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Main active requests (pending / approved) */}
           {activeList.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>

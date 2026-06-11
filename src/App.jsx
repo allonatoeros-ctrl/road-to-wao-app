@@ -380,6 +380,7 @@ function App() {
               rides={rides}
               joinRequests={joinRequests}
               generalRequests={generalRequests}
+              userProfile={userProfile}
               onFindRide={() => setCurrentTab('bacheca')} 
               onOpenControlRoom={() => setCurrentTab('control-room')}
               onArchiveRequest={(id) => {
