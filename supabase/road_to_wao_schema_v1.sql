@@ -100,6 +100,9 @@ create table public.general_requests (
   requester_id uuid not null references public.profiles(id) on delete cascade,
   from_city text not null,
   from_area text,
+  departure_date text,
+  return_date text,
+  departure_time_label text,
   people_count integer not null default 1 check (people_count > 0),
   message text,
   status text not null default 'pending' check (status in ('pending', 'reviewed', 'matched_manually', 'archived', 'cancelled')),
@@ -162,8 +165,8 @@ create or replace function public.is_admin(user_id uuid)
 returns boolean as $$
 begin
   return exists (
-    select 1 from public.profiles
-    where id = user_id and is_admin = true
+    select 1 from public.profiles p
+    where p.id = user_id and p.is_admin = true
   );
 end;
 $$ language plpgsql security definer set search_path = public;
@@ -173,7 +176,7 @@ create or replace function public.check_profile_update()
 returns trigger as $$
 begin
   if old.is_admin <> new.is_admin then
-    if not public.is_admin(auth.uid()) then
+    if auth.uid() is not null and not public.is_admin(auth.uid()) then
       raise exception 'Only administrators can modify the is_admin status.';
     end if;
   end if;
@@ -194,7 +197,7 @@ begin
      (old.seats_requested <> new.seats_requested) or
      (old.message is distinct from new.message) then
     
-    if not public.is_admin(auth.uid()) then
+    if auth.uid() is not null and not public.is_admin(auth.uid()) then
       raise exception 'The fields requester_id, ride_id, seats_requested, and message are read-only after creation.';
     end if;
   end if;
@@ -238,18 +241,20 @@ begin
   end if;
 
   if v_seats_requested <> 0 then
-    select seats_available into v_seats_available
-    from public.rides
-    where id = coalesce(new.ride_id, old.ride_id);
+    -- Serialize concurrent updates using FOR UPDATE
+    select r.seats_available into v_seats_available
+    from public.rides r
+    where r.id = coalesce(new.ride_id, old.ride_id)
+    for update;
 
     if v_seats_requested > v_seats_available then
       raise exception 'Insufficient available seats on this ride (Requested: %, Available: %).', 
         v_seats_requested, v_seats_available;
     end if;
 
-    update public.rides
-    set seats_available = seats_available - v_seats_requested
-    where id = coalesce(new.ride_id, old.ride_id);
+    update public.rides r
+    set seats_available = r.seats_available - v_seats_requested
+    where r.id = coalesce(new.ride_id, old.ride_id);
   end if;
 
   if TG_OP = 'DELETE' then
@@ -263,6 +268,46 @@ $$ language plpgsql security definer set search_path = public;
 create trigger sync_join_request_seats
   after insert or update or delete on public.join_requests
   for each row execute function public.handle_join_request_seats();
+
+-- Prevent drivers from manually desyncing rides.seats_available
+create or replace function public.check_ride_seats_consistency()
+returns trigger as $$
+declare
+  v_approved_seats integer;
+begin
+  -- Keep checks preventing seats_available < 0 and seats_available > seats_total
+  if new.seats_available < 0 then
+    raise exception 'Seats available cannot be negative.';
+  end if;
+  if new.seats_available > new.seats_total then
+    raise exception 'Seats available cannot exceed total seats.';
+  end if;
+
+  -- Allow bypass for auth.uid() IS NULL / SQL Editor / service_role
+  -- Admins can update if needed
+  if auth.uid() is not null and not public.is_admin(auth.uid()) then
+    -- Only enforce consistency if seats_available or seats_total is modified
+    if (old.seats_available is distinct from new.seats_available) or 
+       (old.seats_total is distinct from new.seats_total) then
+      
+      select coalesce(sum(jr.seats_requested), 0) into v_approved_seats
+      from public.join_requests jr
+      where jr.ride_id = new.id and jr.status = 'approved';
+
+      if new.seats_available <> (new.seats_total - v_approved_seats) then
+        raise exception 'Seats available (%) must match seats total (%) minus approved requested seats (%).',
+          new.seats_available, new.seats_total, v_approved_seats;
+      end if;
+    end if;
+  end if;
+  
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public;
+
+create trigger enforce_ride_seats_consistency
+  before update on public.rides
+  for each row execute function public.check_ride_seats_consistency();
 
 -- ==========================================
 -- 3. ROW LEVEL SECURITY (RLS) POLICIES
@@ -422,14 +467,14 @@ create policy "Allow drivers, approved users, and admins to select secrets"
   to authenticated
   using (
     -- Driver of the ride can read it
-    auth.uid() = (select driver_id from public.rides where id = ride_id)
+    auth.uid() = (select r.driver_id from public.rides r where r.id = ride_secrets.ride_id)
     or
     -- Approved requester can read it (has an approved join request for this ride)
     exists (
-      select 1 from public.join_requests
-      where ride_id = ride_secrets.ride_id
-        and requester_id = auth.uid()
-        and status = 'approved'
+      select 1 from public.join_requests jr
+      where jr.ride_id = ride_secrets.ride_id
+        and jr.requester_id = auth.uid()
+        and jr.status = 'approved'
     )
     or
     -- Admin can read it
@@ -441,7 +486,7 @@ create policy "Allow drivers and admins to insert secrets"
   for insert
   to authenticated
   with check (
-    auth.uid() = (select driver_id from public.rides where id = ride_id)
+    auth.uid() = (select r.driver_id from public.rides r where r.id = ride_secrets.ride_id)
     or
     public.is_admin(auth.uid())
   );
@@ -451,12 +496,12 @@ create policy "Allow drivers and admins to update secrets"
   for update
   to authenticated
   using (
-    auth.uid() = (select driver_id from public.rides where id = ride_id)
+    auth.uid() = (select r.driver_id from public.rides r where r.id = ride_secrets.ride_id)
     or
     public.is_admin(auth.uid())
   )
   with check (
-    auth.uid() = (select driver_id from public.rides where id = ride_id)
+    auth.uid() = (select r.driver_id from public.rides r where r.id = ride_secrets.ride_id)
     or
     public.is_admin(auth.uid())
   );
@@ -481,7 +526,7 @@ create policy "Allow drivers to view join requests for their rides"
   on public.join_requests
   for select
   to authenticated
-  using (auth.uid() = (select driver_id from public.rides where id = ride_id));
+  using (auth.uid() = (select r.driver_id from public.rides r where r.id = join_requests.ride_id));
 
 create policy "Allow admins to view all join requests"
   on public.join_requests
@@ -493,21 +538,32 @@ create policy "Allow authenticated users to create join requests for themselves"
   on public.join_requests
   for insert
   to authenticated
-  with check (auth.uid() = requester_id);
+  with check (
+    auth.uid() = requester_id
+    and status = 'pending'
+    and requester_id <> (select r.driver_id from public.rides r where r.id = join_requests.ride_id)
+  );
 
 create policy "Allow requesters to update/cancel their own pending requests"
   on public.join_requests
   for update
   to authenticated
-  using (auth.uid() = requester_id)
+  using (auth.uid() = requester_id and status = 'pending')
   with check (auth.uid() = requester_id and status in ('pending', 'cancelled'));
+
+create policy "Allow requesters to cancel their own approved requests"
+  on public.join_requests
+  for update
+  to authenticated
+  using (auth.uid() = requester_id and status = 'approved')
+  with check (auth.uid() = requester_id and status = 'cancelled');
 
 create policy "Allow drivers to update status of join requests for their rides"
   on public.join_requests
   for update
   to authenticated
-  using (auth.uid() = (select driver_id from public.rides where id = ride_id))
-  with check (auth.uid() = (select driver_id from public.rides where id = ride_id));
+  using (auth.uid() = (select r.driver_id from public.rides r where r.id = join_requests.ride_id))
+  with check (auth.uid() = (select r.driver_id from public.rides r where r.id = join_requests.ride_id));
 
 create policy "Allow admins to update any join request"
   on public.join_requests
