@@ -103,7 +103,7 @@ function App() {
   const [joinModalMode, setJoinModalMode] = useState(null);
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [requests, setRequests] = useState([]);
-  const [rides, setRides] = useState(INITIAL_RIDES);
+  const [rides, setRides] = useState([]);
   const [authBannerMessage, setAuthBannerMessage] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
   const [passwordRecoveryMode, setPasswordRecoveryMode] = useState(false);
@@ -277,7 +277,7 @@ function App() {
         const { data: rawRides, error: ridesError } = await fetchRides();
         if (ridesError) {
           console.error('Error fetching rides from Supabase:', ridesError);
-          console.log('Fallback to local demo rides');
+          console.log('Fallback to empty public board');
           return;
         }
 
@@ -331,11 +331,11 @@ function App() {
           });
           console.log(`loaded Supabase rides count: ${mappedRides.length}`);
         } else {
-          console.log('Fallback to local demo rides');
+          console.log('Fallback to empty public board');
         }
       } catch (err) {
         console.error('Unexpected error in loadSupabaseRides:', err);
-        console.log('Fallback to local demo rides');
+        console.log('Fallback to empty public board');
       }
     }
 
