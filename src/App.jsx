@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import CosmicAppShell from './components/CosmicAppShell';
-import { fetchRides, createRide, getCurrentUser, getCurrentProfile, createJoinRequest, fetchJoinRequests, approveJoinRequest, rejectJoinRequest, getUnlockedCrewForRide } from './services/roadToWaoDb';
+import { fetchRides, createRide, getCurrentUser, getCurrentProfile, createJoinRequest, fetchJoinRequests, approveJoinRequest, rejectJoinRequest, getUnlockedCrewForRide, createGeneralRequest } from './services/roadToWaoDb';
 import { supabase } from './services/supabaseClient';
 import SolarHeroBackground from './components/SolarHeroBackground';
 import BottomNav from './components/BottomNav';
@@ -680,11 +680,6 @@ function App() {
         return;
       }
 
-      if (!selectedRideForJoin || !selectedRideForJoin.id || !isUuid(selectedRideForJoin.id)) {
-        runLocalFlow();
-        return;
-      }
-
       let profileNickname = null;
       try {
         const { data: profileData } = await getCurrentProfile();
@@ -697,84 +692,158 @@ function App() {
 
       const requesterName = profileNickname || formData.nickname || 'Raver';
 
-      const payload = {
-        ride_id: selectedRideForJoin.id,
-        rideId: selectedRideForJoin.id,
-        passengers: parseInt(formData.passengers || formData.peopleCount, 10) || 1,
-        seats_requested: parseInt(formData.passengers || formData.peopleCount, 10) || 1,
-        luggage: formData.luggageNeed || '',
-        luggage_details: formData.luggageDetails || '',
-        luggageNeed: formData.luggageNeed || '',
-        message: formData.message || '',
-        notes: formData.message || ''
-      };
+      if (joinModalMode === 'general') {
+        const payload = {
+          requester_id: user.id,
+          from_city: formData.departureCity,
+          from_area: formData.nearbyFlexible === 'sì' ? 'Flessibile città vicine' : null,
+          departure_date: formData.departureDate || null,
+          return_date: formData.returnDate || null,
+          departure_time_label: formData.travelTime,
+          people_count: parseInt(formData.passengers || formData.peopleCount, 10) || 1,
+          message: formData.message || '',
+          status: 'pending'
+        };
 
-      const { data: supabaseReq, error: createError } = await createJoinRequest(payload);
+        const { data: supabaseReq, error: createError } = await createGeneralRequest(payload);
 
-      if (createError || !supabaseReq) {
-        if (createError) {
-          console.error('Error creating join request in Supabase:', createError);
+        if (createError || !supabaseReq) {
+          console.error('Full Supabase Error (createGeneralRequest):', createError);
+          setAuthBannerMessage(`Errore nel salvataggio su Supabase: ${createError?.message || 'Richiesta non salvata.'}`);
+          return;
         }
-        runLocalFlow();
-        return;
+
+        const newGeneral = {
+          id: supabaseReq.id,
+          type: 'general',
+          status: supabaseReq.status || 'pending',
+          archived: false,
+          nickname: requesterName,
+          departureCity: formData.departureCity,
+          tripType: formData.tripType,
+          travelTime: formData.travelTime,
+          peopleCount: supabaseReq.people_count || formData.passengers || formData.peopleCount,
+          passengers: supabaseReq.people_count || formData.passengers || formData.peopleCount,
+          luggageNeed: formData.luggageNeed,
+          luggageDetails: formData.luggageDetails,
+          nearbyFlexible: formData.nearbyFlexible,
+          message: supabaseReq.message || formData.message,
+          isOfAge: formData.isOfAge,
+          createdAt: supabaseReq.created_at || new Date().toISOString()
+        };
+        setGeneralRequests(prev => [newGeneral, ...prev]);
+
+        const legacyReq = {
+          id: supabaseReq.id,
+          type: 'join',
+          status: 'pending',
+          archived: false,
+          route: `${formData.departureCity} → WAO (Generale)`,
+          departure: formData.departureCity,
+          departureCity: formData.departureCity,
+          nickname: requesterName,
+          passengers: supabaseReq.people_count || formData.passengers || formData.peopleCount,
+          peopleCount: supabaseReq.people_count || formData.passengers || formData.peopleCount,
+          tripType: formData.tripType,
+          travelTime: formData.travelTime,
+          luggageNeed: formData.luggageNeed,
+          luggageDetails: formData.luggageDetails,
+          nearbyFlexible: formData.nearbyFlexible,
+          message: supabaseReq.message || formData.message,
+          isOfAge: formData.isOfAge,
+          createdAt: supabaseReq.created_at || new Date().toISOString()
+        };
+        setRequests(prev => [legacyReq, ...prev]);
+
+        handleUpdateProfile({
+          nickname: requesterName,
+          departureCity: formData.departureCity
+        });
+
+      } else {
+        // Mode 'ride' (Chiedi di unirti)
+        if (!selectedRideForJoin || !selectedRideForJoin.id || !isUuid(selectedRideForJoin.id)) {
+          runLocalFlow();
+          return;
+        }
+
+        const payload = {
+          ride_id: selectedRideForJoin.id,
+          rideId: selectedRideForJoin.id,
+          passengers: parseInt(formData.passengers || formData.peopleCount, 10) || 1,
+          seats_requested: parseInt(formData.passengers || formData.peopleCount, 10) || 1,
+          luggage: formData.luggageNeed || '',
+          luggage_details: formData.luggageDetails || '',
+          luggageNeed: formData.luggageNeed || '',
+          message: formData.message || '',
+          notes: formData.message || ''
+        };
+
+        const { data: supabaseReq, error: createError } = await createJoinRequest(payload);
+
+        if (createError || !supabaseReq) {
+          console.error('Full Supabase Error (createJoinRequest):', createError);
+          setAuthBannerMessage(`Errore nel salvataggio su Supabase: ${createError?.message || 'Richiesta non salvata.'}`);
+          return;
+        }
+
+        const mappedJoin = {
+          id: supabaseReq.id,
+          rideId: supabaseReq.ride_id,
+          requesterId: supabaseReq.requester_id || user.id,
+          rideSummary: `${selectedRideForJoin.departureCity}/${selectedRideForJoin.departureDate}/${selectedRideForJoin.travelTime}/${selectedRideForJoin.driver}`,
+          type: 'join',
+          status: supabaseReq.status || 'pending',
+          archived: false,
+          nickname: requesterName,
+          departureCity: formData.departureCity,
+          tripType: formData.tripType,
+          travelTime: formData.travelTime,
+          peopleCount: supabaseReq.seats_requested || formData.passengers || formData.peopleCount,
+          passengers: supabaseReq.seats_requested || formData.passengers || formData.peopleCount,
+          luggageNeed: formData.luggageNeed,
+          luggageDetails: formData.luggageDetails,
+          nearbyFlexible: formData.nearbyFlexible,
+          message: supabaseReq.message || formData.message,
+          isOfAge: formData.isOfAge,
+          createdAt: supabaseReq.created_at || new Date().toISOString()
+        };
+
+        const legacyReq = {
+          id: supabaseReq.id,
+          type: 'join',
+          status: supabaseReq.status || 'pending',
+          archived: false,
+          route: `${selectedRideForJoin.departureCity || selectedRideForJoin.from} → ${selectedRideForJoin.destination || selectedRideForJoin.to || 'WAO'}`,
+          departure: formData.departureCity,
+          departureCity: formData.departureCity,
+          nickname: requesterName,
+          passengers: supabaseReq.seats_requested || formData.passengers || formData.peopleCount,
+          peopleCount: supabaseReq.seats_requested || formData.passengers || formData.peopleCount,
+          tripType: formData.tripType,
+          travelTime: formData.travelTime,
+          luggageNeed: formData.luggageNeed,
+          luggageDetails: formData.luggageDetails,
+          nearbyFlexible: formData.nearbyFlexible,
+          message: supabaseReq.message || formData.message,
+          isOfAge: formData.isOfAge,
+          rideId: supabaseReq.ride_id,
+          requesterId: supabaseReq.requester_id || user.id,
+          createdAt: supabaseReq.created_at || new Date().toISOString()
+        };
+
+        setJoinRequests(prev => [mappedJoin, ...prev]);
+        setRequests(prev => [legacyReq, ...prev]);
+
+        handleUpdateProfile({
+          nickname: requesterName,
+          departureCity: formData.departureCity
+        });
       }
-
-      const mappedJoin = {
-        id: supabaseReq.id,
-        rideId: supabaseReq.ride_id,
-        requesterId: supabaseReq.requester_id || user.id,
-        rideSummary: `${selectedRideForJoin.departureCity}/${selectedRideForJoin.departureDate}/${selectedRideForJoin.travelTime}/${selectedRideForJoin.driver}`,
-        type: 'join',
-        status: supabaseReq.status || 'pending',
-        archived: false,
-        nickname: requesterName,
-        departureCity: formData.departureCity,
-        tripType: formData.tripType,
-        travelTime: formData.travelTime,
-        peopleCount: supabaseReq.seats_requested || formData.passengers || formData.peopleCount,
-        passengers: supabaseReq.seats_requested || formData.passengers || formData.peopleCount,
-        luggageNeed: formData.luggageNeed,
-        luggageDetails: formData.luggageDetails,
-        nearbyFlexible: formData.nearbyFlexible,
-        message: supabaseReq.message || formData.message,
-        isOfAge: formData.isOfAge,
-        createdAt: supabaseReq.created_at || new Date().toISOString()
-      };
-
-      const legacyReq = {
-        id: supabaseReq.id,
-        type: 'join',
-        status: supabaseReq.status || 'pending',
-        archived: false,
-        route: `${selectedRideForJoin.departureCity || selectedRideForJoin.from} → ${selectedRideForJoin.destination || selectedRideForJoin.to || 'WAO'}`,
-        departure: formData.departureCity,
-        departureCity: formData.departureCity,
-        nickname: requesterName,
-        passengers: supabaseReq.seats_requested || formData.passengers || formData.peopleCount,
-        peopleCount: supabaseReq.seats_requested || formData.passengers || formData.peopleCount,
-        tripType: formData.tripType,
-        travelTime: formData.travelTime,
-        luggageNeed: formData.luggageNeed,
-        luggageDetails: formData.luggageDetails,
-        nearbyFlexible: formData.nearbyFlexible,
-        message: supabaseReq.message || formData.message,
-        isOfAge: formData.isOfAge,
-        rideId: supabaseReq.ride_id,
-        requesterId: supabaseReq.requester_id || user.id,
-        createdAt: supabaseReq.created_at || new Date().toISOString()
-      };
-
-      setJoinRequests(prev => [mappedJoin, ...prev]);
-      setRequests(prev => [legacyReq, ...prev]);
-
-      handleUpdateProfile({
-        nickname: requesterName,
-        departureCity: formData.departureCity
-      });
 
     } catch (e) {
       console.error('Unexpected error in handleSubmitJoinRequest:', e);
-      runLocalFlow();
+      setAuthBannerMessage(`Errore inaspettato: ${e.message}`);
     }
   };
 
@@ -1077,39 +1146,6 @@ function App() {
             userProfile={userProfile}
             onClose={() => setShowOfferModal(false)}
             onSubmitOffer={async (newOffer) => {
-              const runLocalFlow = () => {
-                const offerWithId = {
-                  ...newOffer,
-                  id: newOffer.id || `offer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                  createdAt: newOffer.createdAt || new Date().toISOString()
-                };
-                setRequests(prev => [offerWithId, ...prev]);
-
-                const seatsFromSpots = parseInt(newOffer.spots.charAt(0)) || 2;
-                const newRide = {
-                  id: `ride-${Date.now()}`,
-                  driver: newOffer.nickname,
-                  departureCity: newOffer.departure,
-                  destination: 'WAO',
-                  departureDate: newOffer.date,
-                  travelTime: newOffer.travelTime,
-                  tripType: newOffer.tripType,
-                  seatsTotal: seatsFromSpots,
-                  seatsAvailable: seatsFromSpots,
-                  luggageCapacity: newOffer.luggageCapacity,
-                  luggageDetails: newOffer.luggageDetails,
-                  stops: newOffer.stops,
-                  status: 'open',
-                  telegramUrl: '#telegram-demo'
-                };
-                setRides(prev => [newRide, ...prev]);
-
-                handleUpdateProfile({
-                  nickname: newOffer.nickname,
-                  departureCity: newOffer.departure
-                });
-              };
-
               try {
                 const { data: userData, error: userError } = await getCurrentUser();
                 const user = userData?.user;
@@ -1134,8 +1170,8 @@ function App() {
 
                 const normalizedDate = normalizeDepartureDate(newOffer.date);
                 if (!normalizedDate) {
-                  console.warn('Could not normalize departure date safely, falling back to local flow');
-                  runLocalFlow();
+                  console.error('Validation Error: Date normalization failed for:', newOffer.date);
+                  setAuthBannerMessage('Errore di validazione: Formato data non valido (usa es. "14 Agosto" o "YYYY-MM-DD").');
                   return;
                 }
 
@@ -1161,10 +1197,8 @@ function App() {
 
                 const { data: supabaseRide, error: createError } = await createRide(payload);
                 if (createError || !supabaseRide) {
-                  if (createError) {
-                    console.error('Error creating ride in Supabase:', createError);
-                  }
-                  runLocalFlow();
+                  console.error('Full Supabase Error (createRide):', createError);
+                  setAuthBannerMessage(`Errore nel salvataggio su Supabase: ${createError?.message || 'Viaggio non salvato.'}`);
                   return;
                 }
 
@@ -1199,7 +1233,7 @@ function App() {
 
               } catch (e) {
                 console.error('Unexpected error in onSubmitOffer:', e);
-                runLocalFlow();
+                setAuthBannerMessage(`Errore inaspettato: ${e.message}`);
               }
             }}
             onGoToMessages={() => setCurrentTab('messaggi')}
