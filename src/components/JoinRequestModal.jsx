@@ -23,7 +23,9 @@ export default function JoinRequestModal({
     luggageDetails: '',
     nearbyFlexible: 'sì',
     message: '',
-    isOfAge: false
+    isOfAge: false,
+    departureDate: '',
+    returnDate: ''
   });
 
   const [errors, setErrors] = useState({});
@@ -45,6 +47,7 @@ export default function JoinRequestModal({
     const newErrors = {};
     if (!form.nickname.trim()) newErrors.nickname = true;
     if (!form.departureCity.trim()) newErrors.departureCity = true;
+    if (mode === 'general' && !form.departureDate) newErrors.departureDate = true;
     if (!form.message.trim()) newErrors.message = true;
     if (!form.isOfAge) newErrors.isOfAge = true;
 
@@ -70,6 +73,8 @@ export default function JoinRequestModal({
           nearbyFlexible: form.nearbyFlexible,
           message: form.message,
           isOfAge: form.isOfAge,
+          departureDate: form.departureDate,
+          returnDate: form.returnDate,
           route: mode === 'ride' && ride ? `${ride.from || ride.departureCity} → ${ride.to || ride.destination}` : `${form.departureCity} → WAO (Generale)`,
           status: mode === 'general' ? 'active' : 'pending'
         });
@@ -206,9 +211,39 @@ export default function JoinRequestModal({
                     <option value="solo andata">Solo andata</option>
                     <option value="solo ritorno">Solo ritorno</option>
                     <option value="andata e ritorno">Andata e ritorno</option>
+                    {mode === 'general' && <option value="non so ancora">Non so ancora</option>}
                   </select>
                 </div>
               </div>
+
+              {mode === 'general' && (
+                <div className="form-row-grid">
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="departureDate">Data partenza (obbligatoria)</label>
+                    <input
+                      type="date"
+                      id="departureDate"
+                      name="departureDate"
+                      value={form.departureDate}
+                      onChange={handleChange}
+                      className={`form-input ${errors.departureDate ? 'input-error' : ''}`}
+                    />
+                    {errors.departureDate && <span className="error-text">Specifica la data di partenza</span>}
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="returnDate">Data ritorno (opzionale)</label>
+                    <input
+                      type="date"
+                      id="returnDate"
+                      name="returnDate"
+                      value={form.returnDate}
+                      onChange={handleChange}
+                      className="form-input"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="form-row-grid">
                 <div className="form-group">

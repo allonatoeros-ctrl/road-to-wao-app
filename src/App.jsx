@@ -565,6 +565,8 @@ function App() {
               luggageDetails: '',
               nearbyFlexible: req.from_area ? 'sì' : 'no',
               message: req.message,
+              departureDate: req.departure_date,
+              returnDate: req.return_date,
               createdAt: req.created_at || new Date().toISOString()
             };
           });
@@ -588,6 +590,8 @@ function App() {
               luggageDetails: '',
               nearbyFlexible: req.from_area ? 'sì' : 'no',
               message: req.message,
+              departureDate: req.departure_date,
+              returnDate: req.return_date,
               createdAt: req.created_at || new Date().toISOString()
             };
           });
@@ -813,7 +817,7 @@ function App() {
           return_date: formData.returnDate || null,
           departure_time_label: formData.travelTime,
           people_count: parseInt(formData.passengers || formData.peopleCount, 10) || 1,
-          message: formData.message || '',
+          message: formData.message ? `[Tratta: ${formData.tripType}] ${formData.message}` : `[Tratta: ${formData.tripType}]`,
           status: 'pending'
         };
 
@@ -841,6 +845,8 @@ function App() {
           nearbyFlexible: formData.nearbyFlexible,
           message: supabaseReq.message || formData.message,
           isOfAge: formData.isOfAge,
+          departureDate: formData.departureDate || supabaseReq.departure_date,
+          returnDate: formData.returnDate || supabaseReq.return_date,
           createdAt: supabaseReq.created_at || new Date().toISOString()
         };
         setGeneralRequests(prev => [newGeneral, ...prev]);
@@ -863,6 +869,8 @@ function App() {
           nearbyFlexible: formData.nearbyFlexible,
           message: supabaseReq.message || formData.message,
           isOfAge: formData.isOfAge,
+          departureDate: formData.departureDate || supabaseReq.departure_date,
+          returnDate: formData.returnDate || supabaseReq.return_date,
           createdAt: supabaseReq.created_at || new Date().toISOString()
         };
         setRequests(prev => [legacyReq, ...prev]);

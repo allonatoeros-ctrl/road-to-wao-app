@@ -451,6 +451,8 @@ export default function AdminPanel({
                     </div>
                     <div className="cr-gen-meta">
                       <span>📍 {g.departureCity}</span>
+                      {g.departureDate && <span>📅 Partenza: {fmtDate(g.departureDate) || g.departureDate}</span>}
+                      {g.returnDate && <span>📅 Ritorno: {fmtDate(g.returnDate) || g.returnDate}</span>}
                       {g.travelTime && <span>🕐 {g.travelTime}</span>}
                       {g.tripType && <span>↔ {g.tripType}</span>}
                       {(g.passengers || g.peopleCount) && (
