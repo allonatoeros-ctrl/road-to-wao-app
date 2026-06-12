@@ -46,7 +46,7 @@ export default function JoinRequestModal({
     e.preventDefault();
     const newErrors = {};
     if (!form.nickname.trim()) newErrors.nickname = true;
-    if (!form.departureCity.trim()) newErrors.departureCity = true;
+    if (mode === 'general' && !form.departureCity.trim()) newErrors.departureCity = true;
     if (mode === 'general' && !form.departureDate) newErrors.departureDate = true;
     if (!form.message.trim()) newErrors.message = true;
     if (!form.isOfAge) newErrors.isOfAge = true;

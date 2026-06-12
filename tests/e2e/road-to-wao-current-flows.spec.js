@@ -543,6 +543,112 @@ test.describe('Road to WAO - Mocked Diagnostic UI Suite', () => {
     await expect(page.locator('.ride-card', { hasText: 'Richiesta per Roma → WAO' })).not.toBeVisible();
   });
 
+  test('3c. Chiedi di unirmi flow: non compila departureCity (Success)', async ({ page }) => {
+    // Intercept Supabase auth user request to return a passenger user ID
+    await page.route('**/auth/v1/user', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: "77777777-7777-7777-7777-777777777777",
+          email: "pw_test_passenger@roadtowao.local",
+          role: "authenticated",
+          aud: "authenticated"
+        })
+      });
+    });
+
+    // Intercept Supabase auth sign-in request to return passenger
+    await page.route('**/auth/v1/token?grant_type=password', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          access_token: "mock-access-token",
+          token_type: "bearer",
+          expires_in: 3600,
+          refresh_token: "mock-refresh-token",
+          user: {
+            id: "77777777-7777-7777-7777-777777777777",
+            email: "pw_test_passenger@roadtowao.local"
+          },
+          session: {
+            access_token: "mock-access-token",
+            user: {
+              id: "77777777-7777-7777-7777-777777777777",
+              email: "pw_test_passenger@roadtowao.local"
+            }
+          }
+        })
+      });
+    });
+
+    // Intercept profile fetching to return passenger profile
+    await page.route('**/rest/v1/profiles**', async (route) => {
+      const method = route.request().method();
+      if (method === 'GET') {
+        const url = route.request().url();
+        if (url.includes('select=id%2Cnickname')) {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify([
+              { id: "e2c3a50f-155b-433a-bc12-f046fdf4e4e4", nickname: "PW_TEST_Driver" },
+              { id: "77777777-7777-7777-7777-777777777777", nickname: "PW_TEST_Passenger" }
+            ])
+          });
+        } else {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify([
+              {
+                id: "77777777-7777-7777-7777-777777777777",
+                nickname: "PW_TEST_Passenger",
+                departure_city: "",
+                role: "passenger",
+                is_of_age: true,
+                is_admin: false,
+                created_at: "2026-06-12T16:30:00Z",
+                updated_at: "2026-06-12T16:30:00Z"
+              }
+            ])
+          });
+        }
+      } else {
+        await route.fallback();
+      }
+    });
+
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await dismissOnboarding(page);
+    await loginAsTestUser(page, 'PW_TEST_Passenger', false);
+
+    // Go to Bacheca
+    await page.locator('.bottom-nav-bar').getByText('Bacheca').click();
+
+    // Click "Chiedi di unirti" on Roma ride card
+    const targetCard = page.locator('.ride-card', { hasText: 'Roma' });
+    await targetCard.getByRole('button', { name: 'Chiedi di unirti' }).click();
+
+    // Svuota departureCity per simulare mancata compilazione
+    await page.locator('#departureCity').fill('');
+
+    // Compila solo i campi necessari (messaggio e conferma età)
+    await page.locator('#message').fill('PW_TEST_JOIN: Vorrei unirmi senza città!');
+    await confirmAge(page);
+
+    // Submit
+    await page.getByRole('button', { name: 'Invia richiesta' }).click();
+
+    // Success Modal
+    await expect(page.getByRole('heading', { name: 'Richiesta inviata' })).toBeVisible();
+
+    // Verifica che sia stato inserito in db.joinRequests con il corretto ride_id
+    const joined = db.joinRequests.find(r => r.ride_id === '7038e21a-e55b-433a-bc12-f046fdf4e4a1');
+    expect(joined).toBeDefined();
+  });
+
   test('4. Richiesta generale flow: compilazione, invio, card/stato visibile (Success)', async ({ page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await dismissOnboarding(page);
@@ -556,6 +662,7 @@ test.describe('Road to WAO - Mocked Diagnostic UI Suite', () => {
 
     // Fill form
     await page.locator('#departureCity').fill('Bologna');
+    await page.locator('#departureDate').fill('2026-08-14');
     await page.locator('#travelTime').selectOption('mattina');
     await page.locator('#passengers').selectOption('1');
     await page.locator('#message').fill('PW_TEST_GENERAL: Cerco passaggio');
@@ -602,6 +709,7 @@ test.describe('Road to WAO - Mocked Diagnostic UI Suite', () => {
 
     // Fill form and submit
     await page.locator('#departureCity').fill('Bologna');
+    await page.locator('#departureDate').fill('2026-08-14');
     await page.locator('#message').fill('PW_TEST_GENERAL_FAIL');
     await confirmAge(page);
     await page.getByRole('button', { name: 'Invia richiesta' }).click();
@@ -627,7 +735,7 @@ test.describe('Road to WAO - Mocked Diagnostic UI Suite', () => {
       ride_id: "7038e21a-e55b-433a-bc12-f046fdf4e4a1",
       requester_id: "77777777-7777-7777-7777-777777777777",
       seats_requested: 1,
-      message: "PW_TEST_CLEANUP: join",
+      message: "TEST VERCEL: join",
       status: "pending",
       created_at: new Date().toISOString()
     });
@@ -637,7 +745,7 @@ test.describe('Road to WAO - Mocked Diagnostic UI Suite', () => {
       requester_id: "77777777-7777-7777-7777-777777777777",
       from_city: "Bologna",
       people_count: 1,
-      message: "PW_TEST_CLEANUP: general",
+      message: "TEST VERCEL: general",
       status: "pending",
       created_at: new Date().toISOString()
     });
@@ -665,12 +773,14 @@ test.describe('Road to WAO - Mocked Diagnostic UI Suite', () => {
 
     // Setup dialog listener to accept confirm dialog
     page.on('dialog', async (dialog) => {
-      expect(dialog.message()).toContain('Vuoi archiviare richieste test/non confermate?');
       await dialog.accept();
     });
 
     // Click "Pulisci bacheca demo"
     await cleanButton.click();
+
+    // Click "Conferma pulizia TEST" in the preview modal
+    await page.getByRole('button', { name: 'Conferma pulizia TEST' }).click();
 
     // Give state transitions a moment
     await page.waitForTimeout(500);
