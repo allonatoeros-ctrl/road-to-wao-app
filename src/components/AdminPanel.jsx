@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { isTestVercelRecord, getLastCleanupResult } from '../services/roadToWaoDb';
 
 function fmtDate(iso) {
   if (!iso) return '';
@@ -17,54 +18,75 @@ export default function AdminPanel({
   onApproveJoin,
   onRejectJoin,
   onArchiveGeneralRequest,
-  onUpdateStatus,
   onClose,
   isAdmin = false,
   onCleanDemoBoard,
 }) {
   const [expandedRides, setExpandedRides] = useState({});
   const [showHistory, setShowHistory] = useState(false);
+  const [showTestData, setShowTestData] = useState(false);
+
+  const handleCleanDemoBoard = async () => {
+    if (onCleanDemoBoard) {
+      await onCleanDemoBoard();
+      const lastResult = getLastCleanupResult();
+      if (lastResult && !lastResult.error) {
+        const ridesCount = lastResult.archivedRides?.length || 0;
+        const joinsCount = lastResult.cancelledJoinRequests?.length || 0;
+        const gensCount = lastResult.archivedGeneralRequests?.length || 0;
+        alert(`PULIZIA COMPLETATA SELETTIVAMENTE (Solo record TEST VERCEL):\n- Passaggi archiviati: ${ridesCount}\n- Richieste join cancellate: ${joinsCount}\n- Richieste generali archiviate: ${gensCount}`);
+      }
+    }
+  };
 
   const toggleRide = (id) =>
     setExpandedRides((prev) => ({ ...prev, [id]: !prev[id] }));
 
+  // Filter input arrays based on test toggle
+  const filteredRides = showTestData ? rides : rides.filter(r => !isTestVercelRecord(r));
+  const filteredJoinRequests = showTestData ? joinRequests : joinRequests.filter(jr => !isTestVercelRecord(jr));
+  const filteredGeneralRequests = showTestData ? generalRequests : generalRequests.filter(gr => !isTestVercelRecord(gr));
+  const filteredRequests = showTestData ? requests : requests.filter(r => !isTestVercelRecord(r));
+
   // ── KPI ──────────────────────────────────────────────────────
-  const openRides = rides.filter((r) => r.status !== 'full' && r.status !== 'closed');
+  const openRides = filteredRides.filter((r) => r.status !== 'full' && r.status !== 'closed' && r.status !== 'archived');
   const totalSeats = openRides.reduce((acc, r) => acc + (r.seatsAvailable || 0), 0);
-  const pendingJoins = joinRequests.filter((r) => r.status === 'pending' && !r.archived);
-  const activeGenerals = generalRequests.filter((r) => !r.archived && r.status !== 'rejected');
+  const pendingJoins = filteredJoinRequests.filter((r) => r.status === 'pending' && !r.archived);
+  const activeGenerals = filteredGeneralRequests.filter((r) => !r.archived && r.status !== 'rejected');
 
   // ── LEFT — rides + their pending joins ──────────────────────
-  const sortedRides = [...rides].sort((a, b) => {
-    // open rides first, then by id (newest last added = first in INITIAL_RIDES order)
-    if (a.status === 'full' && b.status !== 'full') return 1;
-    if (a.status !== 'full' && b.status === 'full') return -1;
-    return 0;
-  });
+  const sortedRides = [...filteredRides]
+    .filter((r) => r.status !== 'archived')
+    .sort((a, b) => {
+      // open rides first, then by id (newest last added = first in INITIAL_RIDES order)
+      if (a.status === 'full' && b.status !== 'full') return 1;
+      if (a.status !== 'full' && b.status === 'full') return -1;
+      return 0;
+    });
 
   const pendingJoinsByRide = (rideId) =>
-    joinRequests.filter((j) => j.rideId === rideId && j.status === 'pending' && !j.archived);
+    filteredJoinRequests.filter((j) => j.rideId === rideId && j.status === 'pending' && !j.archived);
 
   // ── HISTORY — approved + rejected joins ─────────────────────
-  const historyJoins = [...joinRequests]
+  const historyJoins = [...filteredJoinRequests]
     .filter((j) => j.status === 'approved' || j.status === 'rejected')
     .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
   // legacy offers from requests that are not joins
-  const legacyOffers = requests.filter(
+  const legacyOffers = filteredRequests.filter(
     (r) => r.type === 'offer' && (r.status === 'approved' || r.status === 'rejected'),
   );
 
   // ── RIGHT — general requests ─────────────────────────────────
-  const activeGenReqs = generalRequests.filter((r) => !r.archived);
-  const archivedGenReqs = generalRequests.filter((r) => r.archived);
+  const activeGenReqs = filteredGeneralRequests.filter((r) => !r.archived);
+  const archivedGenReqs = filteredGeneralRequests.filter((r) => r.archived);
 
   // ── RIGHT — crew candidates (read-only) ──────────────────────
   // Match open rides against their pending joins + any compatible general request
   const crewCandidates = openRides
     .map((ride) => {
       const joins = pendingJoinsByRide(ride.id);
-      const compatGenerals = generalRequests.filter((g) => {
+      const compatGenerals = filteredGeneralRequests.filter((g) => {
         if (g.archived) return false;
         const sameCity =
           (g.departureCity || '').toLowerCase() === (ride.departureCity || '').toLowerCase();
@@ -79,9 +101,6 @@ export default function AdminPanel({
     })
     .filter(Boolean);
 
-  // ── Empty state: no data at all ──────────────────────────────
-  const totalItems =
-    joinRequests.length + generalRequests.length + requests.length + rides.length;
 
   return (
     <div className="cr-root">
@@ -98,23 +117,35 @@ export default function AdminPanel({
           </button>
           <h1 className="cr-title">Control Room</h1>
           <span className="cr-demo-badge">Demo · non ufficiale</span>
-          {isAdmin && onCleanDemoBoard && (
-            <button
-              type="button"
-              className="wao-secondary-button wao-display"
-              onClick={onCleanDemoBoard}
-              style={{
-                width: 'auto',
-                padding: '6px 14px',
-                fontSize: '11px',
-                marginLeft: 'auto',
-                background: 'linear-gradient(135deg, rgba(255, 60, 0, 0.4), rgba(255, 106, 0, 0.2))',
-                borderColor: 'rgba(255, 106, 0, 0.4)'
-              }}
-            >
-              🧹 Pulisci bacheca demo
-            </button>
-          )}
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <label className="cr-toggle-container">
+              <input
+                type="checkbox"
+                checked={showTestData}
+                onChange={(e) => setShowTestData(e.target.checked)}
+                className="cr-toggle-input"
+              />
+              <span className="cr-toggle-slider" />
+              <span className="cr-toggle-label">Mostra dati di test</span>
+            </label>
+
+            {isAdmin && onCleanDemoBoard && (
+              <button
+                type="button"
+                className="wao-secondary-button wao-display"
+                onClick={handleCleanDemoBoard}
+                style={{
+                  width: 'auto',
+                  padding: '6px 14px',
+                  fontSize: '11px',
+                  background: 'linear-gradient(135deg, rgba(255, 60, 0, 0.4), rgba(255, 106, 0, 0.2))',
+                  borderColor: 'rgba(255, 106, 0, 0.4)'
+                }}
+              >
+                🧹 Pulisci bacheca demo
+              </button>
+            )}
+          </div>
         </div>
         <p className="cr-subtitle">
           Panoramica passaggi · Approva richieste join · Gestisci richieste generali.
@@ -177,7 +208,8 @@ export default function AdminPanel({
                       onKeyDown={(e) => e.key === 'Enter' && toggleRide(ride.id)}
                       aria-expanded={isOpen}
                     >
-                      <span className="cr-ride-route">
+                      <span className="cr-ride-route" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        {isTestVercelRecord(ride) && <span className="cr-test-badge">TEST</span>}
                         {ride.departureCity} → {ride.destination || 'WAO'}
                       </span>
                       <span className="cr-ride-meta">
@@ -223,7 +255,10 @@ export default function AdminPanel({
                             const msg = jr.message ? `"${jr.message.slice(0, 50)}${jr.message.length > 50 ? '…' : ''}"` : '';
                             return (
                               <div key={jr.id} className="cr-join-row">
-                                <span className="cr-join-name">{jr.nickname}</span>
+                                <span className="cr-join-name" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                  {isTestVercelRecord(jr) && <span className="cr-test-badge">TEST</span>}
+                                  {jr.nickname}
+                                </span>
                                 <span className="cr-join-detail">
                                   {pax} {pax === '1' ? 'persona' : 'persone'} ·{' '}
                                   bagaglio: {luggage}
@@ -285,7 +320,10 @@ export default function AdminPanel({
                         : (j.rideSummary || 'Ride non trovato');
                       return (
                         <div key={j.id || i} className="cr-history-row">
-                          <span className="cr-history-name">{j.nickname}</span>
+                          <span className="cr-history-name" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            {isTestVercelRecord(j) && <span className="cr-test-badge" style={{ marginRight: '4px' }}>TEST</span>}
+                            {j.nickname}
+                          </span>
                           <span className="cr-history-route">{route}</span>
                           <span className="cr-history-date">{fmtDate(j.createdAt)}</span>
                           <span className={`cr-status-badge cr-status-badge--${j.status}`}>
@@ -307,7 +345,10 @@ export default function AdminPanel({
                         </div>
                         {legacyOffers.map((r, i) => (
                           <div key={r.id || i} className="cr-history-row">
-                            <span className="cr-history-name">{r.nickname}</span>
+                            <span className="cr-history-name" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                              {isTestVercelRecord(r) && <span className="cr-test-badge" style={{ marginRight: '4px' }}>TEST</span>}
+                              {r.nickname}
+                            </span>
                             <span className="cr-history-route">{r.route || r.departure}</span>
                             <span className="cr-history-date">{fmtDate(r.createdAt)}</span>
                             <span className={`cr-status-badge cr-status-badge--${r.status}`}>
@@ -338,7 +379,10 @@ export default function AdminPanel({
                 {activeGenReqs.map((g) => (
                   <div key={g.id} className="cr-gen-card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                      <span className="cr-gen-name">{g.nickname}</span>
+                      <span className="cr-gen-name" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        {isTestVercelRecord(g) && <span className="cr-test-badge">TEST</span>}
+                        {g.nickname}
+                      </span>
                       <span className="cr-status-badge cr-status-badge--active">
                         {g.status || 'active'}
                       </span>

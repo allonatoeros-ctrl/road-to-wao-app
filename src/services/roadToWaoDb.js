@@ -155,7 +155,7 @@ export async function getCurrentProfile() {
     return { data: null, error: new Error('Supabase is not configured') };
   }
   try {
-    const { data, error: userError } = await supabase.auth.getUser();
+    const { data } = await supabase.auth.getUser();
     const user = data?.user;
     if (!user) {
       return { data: null, error: null };
@@ -640,6 +640,33 @@ export function subscribeToRoadToWaoChanges(onChange) {
 }
 
 /**
+ * Helper function to check if a record matches "TEST VERCEL" in any of its textual fields.
+ * @param {object} record - The database record or frontend object.
+ * @returns {boolean} True if "TEST VERCEL" is found in any text field.
+ */
+export function isTestVercelRecord(record) {
+  if (!record || typeof record !== 'object') return false;
+  for (const key in record) {
+    if (Object.prototype.hasOwnProperty.call(record, key)) {
+      const val = record[key];
+      if (typeof val === 'string' && val.toUpperCase().includes('TEST VERCEL')) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+let lastCleanupResult = null;
+
+/**
+ * Gets the structured result of the last cleanup operation.
+ */
+export function getLastCleanupResult() {
+  return lastCleanupResult;
+}
+
+/**
  * Soft archives test/unconfirmed requests.
  * Updates:
  * - general_requests with status 'pending' or 'new' to status 'archived'.
@@ -647,29 +674,85 @@ export function subscribeToRoadToWaoChanges(onChange) {
  */
 export async function archiveTestData() {
   if (!isSupabaseConfigured) {
-    return { error: new Error('Supabase is not configured') };
+    const errorResult = { error: new Error('Supabase is not configured'), context: 'initialization' };
+    lastCleanupResult = errorResult;
+    return errorResult;
   }
   try {
-    const [genRes, joinRes] = await Promise.all([
-      supabase
-        .from('general_requests')
-        .update({ status: 'archived' })
-        .in('status', ['pending', 'new']),
-      supabase
-        .from('join_requests')
-        .update({ status: 'cancelled' })
-        .in('status', ['pending', 'rejected'])
+    // 1. Fetch rides, join_requests, general_requests
+    const [ridesRes, joinRes, genRes] = await Promise.all([
+      supabase.from('rides').select('id, departure_city, departure_area, to_event, departure_time_label, vibe, notes, status'),
+      supabase.from('join_requests').select('id, message, status'),
+      supabase.from('general_requests').select('id, message, status, from_city, from_area, departure_time_label')
     ]);
 
-    if (genRes.error) {
-      return { error: genRes.error, context: 'general_requests' };
+    if (ridesRes.error) {
+      const errRes = { error: ridesRes.error, context: 'rides' };
+      lastCleanupResult = errRes;
+      return errRes;
     }
     if (joinRes.error) {
-      return { error: joinRes.error, context: 'join_requests' };
+      const errRes = { error: joinRes.error, context: 'join_requests' };
+      lastCleanupResult = errRes;
+      return errRes;
+    }
+    if (genRes.error) {
+      const errRes = { error: genRes.error, context: 'general_requests' };
+      lastCleanupResult = errRes;
+      return errRes;
     }
 
-    return { error: null };
+    // 2. Filter for "TEST VERCEL"
+    const ridesToArchive = (ridesRes.data || []).filter(r => isTestVercelRecord(r) && r.status !== 'archived');
+    const joinsToCancel = (joinRes.data || []).filter(j => isTestVercelRecord(j) && j.status !== 'cancelled');
+    const gensToArchive = (genRes.data || []).filter(g => isTestVercelRecord(g) && g.status !== 'archived');
+
+    // 3. Perform the selective updates
+    const updatePromises = [];
+
+    if (ridesToArchive.length > 0) {
+      const rideIds = ridesToArchive.map(r => r.id);
+      updatePromises.push(
+        supabase.from('rides').update({ status: 'archived' }).in('id', rideIds)
+      );
+    }
+
+    if (joinsToCancel.length > 0) {
+      const joinIds = joinsToCancel.map(j => j.id);
+      updatePromises.push(
+        supabase.from('join_requests').update({ status: 'cancelled' }).in('id', joinIds)
+      );
+    }
+
+    if (gensToArchive.length > 0) {
+      const genIds = gensToArchive.map(g => g.id);
+      updatePromises.push(
+        supabase.from('general_requests').update({ status: 'archived' }).in('id', genIds)
+      );
+    }
+
+    if (updatePromises.length > 0) {
+      const results = await Promise.all(updatePromises);
+      for (const res of results) {
+        if (res.error) {
+          const errRes = { error: res.error, context: 'updating records' };
+          lastCleanupResult = errRes;
+          return errRes;
+        }
+      }
+    }
+
+    const successResult = {
+      error: null,
+      archivedRides: ridesToArchive.map(r => r.id),
+      cancelledJoinRequests: joinsToCancel.map(j => j.id),
+      archivedGeneralRequests: gensToArchive.map(g => g.id)
+    };
+    lastCleanupResult = successResult;
+    return successResult;
   } catch (error) {
-    return { error };
+    const errRes = { error };
+    lastCleanupResult = errRes;
+    return errRes;
   }
 }

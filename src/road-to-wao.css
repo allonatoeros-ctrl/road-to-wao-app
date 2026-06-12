@@ -2456,3 +2456,85 @@
     opacity: 0.9;
   }
 }
+
+/* ============================================================
+   CONTROL ROOM V1A — Test data and Toggle styles
+   ============================================================ */
+
+.cr-test-badge {
+  font-size: 8px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 60, 0, 0.15);
+  color: #ff5050;
+  border: 1px solid rgba(255, 60, 0, 0.35);
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.cr-toggle-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.cr-toggle-input {
+  display: none !important;
+}
+
+.cr-toggle-slider {
+  position: relative;
+  width: 32px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 9px;
+  transition: all 0.2s ease;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.cr-toggle-slider::before {
+  content: "";
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  left: 2px;
+  bottom: 2px;
+  background: var(--text-muted);
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.cr-toggle-input:checked + .cr-toggle-slider {
+  background: rgba(177, 43, 255, 0.2);
+  border-color: rgba(177, 43, 255, 0.5);
+}
+
+.cr-toggle-input:checked + .cr-toggle-slider::before {
+  transform: translateX(14px);
+  background: #d18eff;
+}
+
+.cr-toggle-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  transition: color 0.2s ease;
+  user-select: none;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.cr-toggle-input:checked ~ .cr-toggle-label {
+  color: #d18eff;
+}
