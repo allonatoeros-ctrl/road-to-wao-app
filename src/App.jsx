@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import CosmicAppShell from './components/CosmicAppShell';
-import { fetchRides, createRide, getCurrentUser, getCurrentProfile, createJoinRequest, fetchJoinRequests, approveJoinRequest, rejectJoinRequest, getUnlockedCrewForRide, createGeneralRequest, fetchGeneralRequests, archiveGeneralRequest } from './services/roadToWaoDb';
+import { fetchRides, createRide, getCurrentUser, getCurrentProfile, createJoinRequest, fetchJoinRequests, approveJoinRequest, rejectJoinRequest, getUnlockedCrewForRide, createGeneralRequest, fetchGeneralRequests, archiveGeneralRequest, archiveTestData } from './services/roadToWaoDb';
 import { supabase } from './services/supabaseClient';
 import SolarHeroBackground from './components/SolarHeroBackground';
 import BottomNav from './components/BottomNav';
@@ -1049,6 +1049,48 @@ function App() {
       });
     },
     onClose: () => setCurrentTab('messaggi'),
+    isAdmin,
+    onCleanDemoBoard: async () => {
+      const confirmArchive = window.confirm(
+        "Vuoi archiviare richieste test/non confermate? I dati resteranno in Supabase ma non saranno più visibili in bacheca."
+      );
+      if (!confirmArchive) return;
+
+      try {
+        const { error, context } = await archiveTestData();
+        if (error) {
+          console.error("Errore completo durante l'archiviazione demo:", error);
+          alert(`Errore Supabase (${context || 'database'}): ${error.message || error}`);
+          return;
+        }
+
+        // On success, update React local states
+        setJoinRequests(prev => prev.map(jr => {
+          if (jr.status === 'pending' || jr.status === 'rejected') {
+            return { ...jr, status: 'cancelled' };
+          }
+          return jr;
+        }));
+
+        setRequests(prev => prev.map(r => {
+          if (r.status === 'pending' || r.status === 'rejected') {
+            return { ...r, status: 'cancelled' };
+          }
+          return r;
+        }));
+
+        setGeneralRequests(prev => prev.map(gr => {
+          if (gr.status === 'pending' || gr.status === 'new') {
+            return { ...gr, status: 'archived', archived: true };
+          }
+          return gr;
+        }));
+
+      } catch (err) {
+        console.error("Errore inatteso durante l'archiviazione demo:", err);
+        alert(`Errore inatteso: ${err.message || err}`);
+      }
+    }
   };
 
   // ── Desktop Control Room — renders OUTSIDE the mobile phone shell ──

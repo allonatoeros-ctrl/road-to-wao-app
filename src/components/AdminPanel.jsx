@@ -19,6 +19,8 @@ export default function AdminPanel({
   onArchiveGeneralRequest,
   onUpdateStatus,
   onClose,
+  isAdmin = false,
+  onCleanDemoBoard,
 }) {
   const [expandedRides, setExpandedRides] = useState({});
   const [showHistory, setShowHistory] = useState(false);
@@ -96,6 +98,23 @@ export default function AdminPanel({
           </button>
           <h1 className="cr-title">Control Room</h1>
           <span className="cr-demo-badge">Demo · non ufficiale</span>
+          {isAdmin && onCleanDemoBoard && (
+            <button
+              type="button"
+              className="wao-secondary-button wao-display"
+              onClick={onCleanDemoBoard}
+              style={{
+                width: 'auto',
+                padding: '6px 14px',
+                fontSize: '11px',
+                marginLeft: 'auto',
+                background: 'linear-gradient(135deg, rgba(255, 60, 0, 0.4), rgba(255, 106, 0, 0.2))',
+                borderColor: 'rgba(255, 106, 0, 0.4)'
+              }}
+            >
+              🧹 Pulisci bacheca demo
+            </button>
+          )}
         </div>
         <p className="cr-subtitle">
           Panoramica passaggi · Approva richieste join · Gestisci richieste generali.

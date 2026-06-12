@@ -638,3 +638,38 @@ export function subscribeToRoadToWaoChanges(onChange) {
     };
   }
 }
+
+/**
+ * Soft archives test/unconfirmed requests.
+ * Updates:
+ * - general_requests with status 'pending' or 'new' to status 'archived'.
+ * - join_requests with status 'pending' or 'rejected' to status 'cancelled'.
+ */
+export async function archiveTestData() {
+  if (!isSupabaseConfigured) {
+    return { error: new Error('Supabase is not configured') };
+  }
+  try {
+    const [genRes, joinRes] = await Promise.all([
+      supabase
+        .from('general_requests')
+        .update({ status: 'archived' })
+        .in('status', ['pending', 'new']),
+      supabase
+        .from('join_requests')
+        .update({ status: 'cancelled' })
+        .in('status', ['pending', 'rejected'])
+    ]);
+
+    if (genRes.error) {
+      return { error: genRes.error, context: 'general_requests' };
+    }
+    if (joinRes.error) {
+      return { error: joinRes.error, context: 'join_requests' };
+    }
+
+    return { error: null };
+  } catch (error) {
+    return { error };
+  }
+}
