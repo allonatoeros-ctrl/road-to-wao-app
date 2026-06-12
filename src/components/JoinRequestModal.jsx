@@ -40,7 +40,7 @@ export default function JoinRequestModal({
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const newErrors = {};
     if (!form.nickname.trim()) newErrors.nickname = true;
@@ -54,26 +54,31 @@ export default function JoinRequestModal({
     }
 
     setIsSuccess(false);
-    // Simulate API call and transition
-    setIsSuccess(true);
 
     if (submitHandler) {
-      submitHandler({
-        nickname: form.nickname,
-        departureCity: form.departureCity,
-        departure: form.departureCity,
-        tripType: form.tripType,
-        travelTime: form.travelTime,
-        peopleCount: form.passengers,
-        passengers: form.passengers,
-        luggageNeed: form.luggageNeed,
-        luggageDetails: form.luggageDetails,
-        nearbyFlexible: form.nearbyFlexible,
-        message: form.message,
-        isOfAge: form.isOfAge,
-        route: mode === 'ride' && ride ? `${ride.from || ride.departureCity} → ${ride.to || ride.destination}` : `${form.departureCity} → WAO (Generale)`,
-        status: mode === 'general' ? 'active' : 'pending'
-      });
+      try {
+        await submitHandler({
+          nickname: form.nickname,
+          departureCity: form.departureCity,
+          departure: form.departureCity,
+          tripType: form.tripType,
+          travelTime: form.travelTime,
+          peopleCount: form.passengers,
+          passengers: form.passengers,
+          luggageNeed: form.luggageNeed,
+          luggageDetails: form.luggageDetails,
+          nearbyFlexible: form.nearbyFlexible,
+          message: form.message,
+          isOfAge: form.isOfAge,
+          route: mode === 'ride' && ride ? `${ride.from || ride.departureCity} → ${ride.to || ride.destination}` : `${form.departureCity} → WAO (Generale)`,
+          status: mode === 'general' ? 'active' : 'pending'
+        });
+        setIsSuccess(true);
+      } catch (err) {
+        console.error('Error submitting request:', err);
+      }
+    } else {
+      setIsSuccess(true);
     }
   };
 

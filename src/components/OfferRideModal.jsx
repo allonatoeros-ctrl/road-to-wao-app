@@ -29,7 +29,7 @@ export default function OfferRideModal({ userProfile, onClose, onSubmitOffer, on
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const newErrors = {};
     if (!form.nickname.trim()) newErrors.nickname = true;
@@ -45,25 +45,31 @@ export default function OfferRideModal({ userProfile, onClose, onSubmitOffer, on
     }
 
     setIsSuccess(false);
-    setIsSuccess(true);
 
     if (onSubmitOffer) {
-      onSubmitOffer({
-        type: 'offer',
-        id: Date.now(),
-        route: `${form.departureCity} → WAO`,
-        departure: form.departureCity,
-        date: form.departureDate,
-        spots: form.spots,
-        tripType: form.tripType,
-        travelTime: form.travelTime,
-        luggageCapacity: form.luggageCapacity,
-        luggageDetails: form.luggageDetails,
-        stops: form.stops,
-        nickname: form.nickname,
-        message: form.message,
-        status: 'pending'
-      });
+      try {
+        await onSubmitOffer({
+          type: 'offer',
+          id: Date.now(),
+          route: `${form.departureCity} → WAO`,
+          departure: form.departureCity,
+          date: form.departureDate,
+          spots: form.spots,
+          tripType: form.tripType,
+          travelTime: form.travelTime,
+          luggageCapacity: form.luggageCapacity,
+          luggageDetails: form.luggageDetails,
+          stops: form.stops,
+          nickname: form.nickname,
+          message: form.message,
+          status: 'pending'
+        });
+        setIsSuccess(true);
+      } catch (err) {
+        console.error('Error submitting offer:', err);
+      }
+    } else {
+      setIsSuccess(true);
     }
   };
 

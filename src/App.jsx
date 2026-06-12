@@ -822,7 +822,7 @@ function App() {
         if (createError || !supabaseReq) {
           console.error('Full Supabase Error (createGeneralRequest):', createError);
           setAuthBannerMessage(`Errore nel salvataggio su Supabase: ${createError?.message || 'Richiesta non salvata.'}`);
-          return;
+          throw new Error(createError?.message || 'Richiesta non salvata.');
         }
 
         const newGeneral = {
@@ -896,7 +896,7 @@ function App() {
         if (createError || !supabaseReq) {
           console.error('Full Supabase Error (createJoinRequest):', createError);
           setAuthBannerMessage(`Errore nel salvataggio su Supabase: ${createError?.message || 'Richiesta non salvata.'}`);
-          return;
+          throw new Error(createError?.message || 'Richiesta non salvata.');
         }
 
         const mappedJoin = {
@@ -956,6 +956,7 @@ function App() {
     } catch (e) {
       console.error('Unexpected error in handleSubmitJoinRequest:', e);
       setAuthBannerMessage(`Errore inaspettato: ${e.message}`);
+      throw e instanceof Error ? e : new Error(String(e));
     }
   };
 
@@ -1367,7 +1368,7 @@ function App() {
                 if (createError || !supabaseRide) {
                   console.error('Full Supabase Error (createRide):', createError);
                   setAuthBannerMessage(`Errore nel salvataggio su Supabase: ${createError?.message || 'Viaggio non salvato.'}`);
-                  return;
+                  throw new Error(createError?.message || 'Viaggio non salvato.');
                 }
 
                 // Map returned ride back into the UI ride shape expected by RoadBoard/Messages/Profile
@@ -1402,6 +1403,7 @@ function App() {
               } catch (e) {
                 console.error('Unexpected error in onSubmitOffer:', e);
                 setAuthBannerMessage(`Errore inaspettato: ${e.message}`);
+                throw e instanceof Error ? e : new Error(String(e));
               }
             }}
             onGoToMessages={() => setCurrentTab('messaggi')}
