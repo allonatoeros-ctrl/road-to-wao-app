@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import CosmicAppShell from './components/CosmicAppShell';
-import { fetchRides, createRide, getCurrentUser, getCurrentProfile, createJoinRequest, fetchJoinRequests, approveJoinRequest, rejectJoinRequest, getUnlockedCrewForRide, createGeneralRequest } from './services/roadToWaoDb';
+import { fetchRides, createRide, getCurrentUser, getCurrentProfile, createJoinRequest, fetchJoinRequests, approveJoinRequest, rejectJoinRequest, getUnlockedCrewForRide, createGeneralRequest, fetchGeneralRequests, archiveGeneralRequest } from './services/roadToWaoDb';
 import { supabase } from './services/supabaseClient';
 import SolarHeroBackground from './components/SolarHeroBackground';
 import BottomNav from './components/BottomNav';
@@ -512,6 +512,118 @@ function App() {
     };
   }, [currentTab, rides]);
 
+  useEffect(() => {
+    let active = true;
+    async function loadSupabaseGeneralRequests() {
+      if (!supabase) return;
+      try {
+        const { data: userData } = await getCurrentUser();
+        const user = userData?.user;
+        if (!user) {
+          return;
+        }
+
+        const { data: rawRequests, error } = await fetchGeneralRequests();
+        if (error) {
+          console.error('Error fetching general requests from Supabase:', error);
+          return;
+        }
+
+        if (!active) return;
+
+        if (rawRequests && rawRequests.length > 0) {
+          let profileMap = {};
+          try {
+            const { data: profiles } = await supabase
+              .from('profiles')
+              .select('id, nickname');
+            if (profiles) {
+              profiles.forEach(p => {
+                if (p.id && p.nickname) {
+                  profileMap[p.id] = p.nickname;
+                }
+              });
+            }
+          } catch (err) {
+            console.error('Error fetching profiles for general requests:', err);
+          }
+
+          const mappedGenerals = rawRequests.map(req => {
+            const requesterName = profileMap[req.requester_id] || `Rider-${req.requester_id.substring(0, 5)}`;
+            return {
+              id: req.id,
+              type: 'general',
+              status: req.status || 'pending',
+              archived: req.status === 'archived',
+              nickname: requesterName,
+              departureCity: req.from_city,
+              tripType: req.return_date ? 'andata e ritorno' : 'solo andata',
+              travelTime: req.departure_time_label,
+              peopleCount: req.people_count || 1,
+              passengers: req.people_count || 1,
+              luggageNeed: 'medio',
+              luggageDetails: '',
+              nearbyFlexible: req.from_area ? 'sì' : 'no',
+              message: req.message,
+              createdAt: req.created_at || new Date().toISOString()
+            };
+          });
+
+          const mappedLegacyRequests = rawRequests.map(req => {
+            const requesterName = profileMap[req.requester_id] || `Rider-${req.requester_id.substring(0, 5)}`;
+            return {
+              id: req.id,
+              type: 'join',
+              status: req.status || 'pending',
+              archived: req.status === 'archived',
+              route: `${req.from_city} → WAO (Generale)`,
+              departure: req.from_city,
+              departureCity: req.from_city,
+              nickname: requesterName,
+              passengers: req.people_count || 1,
+              peopleCount: req.people_count || 1,
+              tripType: req.return_date ? 'andata e ritorno' : 'solo andata',
+              travelTime: req.departure_time_label,
+              luggageNeed: 'medio',
+              luggageDetails: '',
+              nearbyFlexible: req.from_area ? 'sì' : 'no',
+              message: req.message,
+              createdAt: req.created_at || new Date().toISOString()
+            };
+          });
+
+          setGeneralRequests(prev => {
+            const updated = prev.map(r => {
+              const match = mappedGenerals.find(m => String(m.id) === String(r.id));
+              return match ? match : r;
+            });
+            const existingIds = new Set(prev.map(r => String(r.id)));
+            const newGenerals = mappedGenerals.filter(r => !existingIds.has(String(r.id)));
+            return [...newGenerals, ...updated];
+          });
+
+          setRequests(prev => {
+            const updated = prev.map(r => {
+              const match = mappedLegacyRequests.find(m => String(m.id) === String(r.id));
+              return match ? match : r;
+            });
+            const existingIds = new Set(prev.map(r => String(r.id)));
+            const newRequests = mappedLegacyRequests.filter(r => !existingIds.has(String(r.id)));
+            return [...newRequests, ...updated];
+          });
+        }
+      } catch (err) {
+        console.error('Unexpected error in loadSupabaseGeneralRequests:', err);
+      }
+    }
+
+    loadSupabaseGeneralRequests();
+
+    return () => {
+      active = false;
+    };
+  }, [currentTab]);
+
   const [userProfile, setUserProfile] = useState(() => {
     const saved = localStorage.getItem('wao_profile');
     if (saved) {
@@ -906,9 +1018,23 @@ function App() {
         setRequests(prev => prev.map(r => r.id === joinId ? { ...r, status: 'rejected' } : r));
       }
     },
-    onArchiveGeneralRequest: (id) => {
-      setGeneralRequests(prev => prev.map(r => r.id === id ? { ...r, archived: true } : r));
-      setRequests(prev => prev.map(r => r.id === id ? { ...r, archived: true } : r));
+    onArchiveGeneralRequest: async (id) => {
+      if (isUuid(id)) {
+        try {
+          const { error } = await archiveGeneralRequest(id);
+          if (error) {
+            console.error('Error archiving general request in Supabase:', error);
+            return;
+          }
+          setGeneralRequests(prev => prev.map(r => r.id === id ? { ...r, archived: true } : r));
+          setRequests(prev => prev.map(r => r.id === id ? { ...r, archived: true } : r));
+        } catch (err) {
+          console.error('Unexpected error during archiveGeneralRequest:', err);
+        }
+      } else {
+        setGeneralRequests(prev => prev.map(r => r.id === id ? { ...r, archived: true } : r));
+        setRequests(prev => prev.map(r => r.id === id ? { ...r, archived: true } : r));
+      }
     },
     onUpdateStatus: (idOrIndex, newStatus) => {
       setRequests(prev => {
