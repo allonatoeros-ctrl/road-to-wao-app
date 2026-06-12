@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import CosmicAppShell from './components/CosmicAppShell';
-import { fetchRides, createRide, getCurrentUser, getCurrentProfile, createJoinRequest, fetchJoinRequests, approveJoinRequest, rejectJoinRequest, getUnlockedCrewForRide, createGeneralRequest, fetchGeneralRequests, archiveGeneralRequest, archiveTestData } from './services/roadToWaoDb';
+import { fetchRides, createRide, getCurrentUser, getCurrentProfile, createJoinRequest, fetchJoinRequests, approveJoinRequest, rejectJoinRequest, getUnlockedCrewForRide, createGeneralRequest, fetchGeneralRequests, archiveGeneralRequest, archiveTestData, isTestVercelRecord } from './services/roadToWaoDb';
 import { supabase } from './services/supabaseClient';
 import SolarHeroBackground from './components/SolarHeroBackground';
 import BottomNav from './components/BottomNav';
@@ -1052,11 +1052,6 @@ function App() {
     onClose: () => setCurrentTab('messaggi'),
     isAdmin,
     onCleanDemoBoard: async () => {
-      const confirmArchive = window.confirm(
-        "Vuoi archiviare richieste test/non confermate? I dati resteranno in Supabase ma non saranno più visibili in bacheca."
-      );
-      if (!confirmArchive) return;
-
       try {
         const { error, context } = await archiveTestData();
         if (error) {
@@ -1066,6 +1061,13 @@ function App() {
         }
 
         // On success, update React local states
+        setRides(prev => prev.map(r => {
+          if (isTestVercelRecord(r)) {
+            return { ...r, status: 'archived' };
+          }
+          return r;
+        }));
+
         setJoinRequests(prev => prev.map(jr => {
           if (jr.status === 'pending' || jr.status === 'rejected') {
             return { ...jr, status: 'cancelled' };

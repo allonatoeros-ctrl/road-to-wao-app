@@ -719,8 +719,10 @@ export async function archiveTestData() {
     }));
 
     // 4. Filter using isTestVercelRecord
-    const ridesToArchive = ridesWithNames.filter(r => isTestVercelRecord(r) && r.status !== 'archived');
-    const joinsToCancel = joinsWithNames.filter(j => isTestVercelRecord(j) && j.status !== 'cancelled');
+    const testRides = ridesWithNames.filter(isTestVercelRecord);
+    const testRideIds = new Set(testRides.map(r => r.id));
+    const ridesToArchive = testRides.filter(r => r.status !== 'archived');
+    const joinsToCancel = joinsWithNames.filter(j => (isTestVercelRecord(j) || testRideIds.has(j.ride_id)) && j.status !== 'cancelled');
     const gensToArchive = gensWithNames.filter(g => isTestVercelRecord(g) && g.status !== 'archived');
 
     const archivedRides = [];
