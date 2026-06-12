@@ -679,79 +679,86 @@ export async function archiveTestData() {
     return errorResult;
   }
   try {
-    // 1. Fetch rides, join_requests, general_requests
+    // 1. Fetch profiles to map user IDs to nicknames
+    const { data: profilesData, error: profErr } = await supabase.from('profiles').select('id, nickname');
+    if (profErr) throw profErr;
+
+    const profileMap = {};
+    if (profilesData) {
+      profilesData.forEach(p => {
+        profileMap[p.id] = p.nickname;
+      });
+    }
+
+    // 2. Fetch rides, join_requests, general_requests
     const [ridesRes, joinRes, genRes] = await Promise.all([
-      supabase.from('rides').select('id, departure_city, departure_area, to_event, departure_time_label, vibe, notes, status'),
-      supabase.from('join_requests').select('id, message, status'),
-      supabase.from('general_requests').select('id, message, status, from_city, from_area, departure_time_label')
+      supabase.from('rides').select('*'),
+      supabase.from('join_requests').select('*'),
+      supabase.from('general_requests').select('*')
     ]);
 
-    if (ridesRes.error) {
-      const errRes = { error: ridesRes.error, context: 'rides' };
-      lastCleanupResult = errRes;
-      return errRes;
-    }
-    if (joinRes.error) {
-      const errRes = { error: joinRes.error, context: 'join_requests' };
-      lastCleanupResult = errRes;
-      return errRes;
-    }
-    if (genRes.error) {
-      const errRes = { error: genRes.error, context: 'general_requests' };
-      lastCleanupResult = errRes;
-      return errRes;
-    }
+    if (ridesRes.error) throw ridesRes.error;
+    if (joinRes.error) throw joinRes.error;
+    if (genRes.error) throw genRes.error;
 
-    // 2. Filter for "TEST VERCEL"
-    const ridesToArchive = (ridesRes.data || []).filter(r => isTestVercelRecord(r) && r.status !== 'archived');
-    const joinsToCancel = (joinRes.data || []).filter(j => isTestVercelRecord(j) && j.status !== 'cancelled');
-    const gensToArchive = (genRes.data || []).filter(g => isTestVercelRecord(g) && g.status !== 'archived');
+    // 3. Attach nickname/driver details for isTestVercelRecord
+    const ridesWithNames = (ridesRes.data || []).map(r => ({
+      ...r,
+      driver: profileMap[r.driver_id] || '',
+      nickname: profileMap[r.driver_id] || ''
+    }));
 
-    // 3. Perform the selective updates
-    const updatePromises = [];
+    const joinsWithNames = (joinRes.data || []).map(j => ({
+      ...j,
+      nickname: profileMap[j.requester_id] || ''
+    }));
 
+    const gensWithNames = (genRes.data || []).map(g => ({
+      ...g,
+      nickname: profileMap[g.requester_id] || ''
+    }));
+
+    // 4. Filter using isTestVercelRecord
+    const ridesToArchive = ridesWithNames.filter(r => isTestVercelRecord(r) && r.status !== 'archived');
+    const joinsToCancel = joinsWithNames.filter(j => isTestVercelRecord(j) && j.status !== 'cancelled');
+    const gensToArchive = gensWithNames.filter(g => isTestVercelRecord(g) && g.status !== 'archived');
+
+    const archivedRides = [];
+    const cancelledJoinRequests = [];
+    const archivedGeneralRequests = [];
+
+    // 5. Update database in place
     if (ridesToArchive.length > 0) {
       const rideIds = ridesToArchive.map(r => r.id);
-      updatePromises.push(
-        supabase.from('rides').update({ status: 'archived' }).in('id', rideIds)
-      );
+      const { error } = await supabase.from('rides').update({ status: 'archived' }).in('id', rideIds);
+      if (error) throw new Error(`Errore passaggi: ${error.message}`);
+      archivedRides.push(...rideIds);
     }
 
     if (joinsToCancel.length > 0) {
       const joinIds = joinsToCancel.map(j => j.id);
-      updatePromises.push(
-        supabase.from('join_requests').update({ status: 'cancelled' }).in('id', joinIds)
-      );
+      const { error } = await supabase.from('join_requests').update({ status: 'cancelled' }).in('id', joinIds);
+      if (error) throw new Error(`Errore join: ${error.message}`);
+      cancelledJoinRequests.push(...joinIds);
     }
 
     if (gensToArchive.length > 0) {
       const genIds = gensToArchive.map(g => g.id);
-      updatePromises.push(
-        supabase.from('general_requests').update({ status: 'archived' }).in('id', genIds)
-      );
-    }
-
-    if (updatePromises.length > 0) {
-      const results = await Promise.all(updatePromises);
-      for (const res of results) {
-        if (res.error) {
-          const errRes = { error: res.error, context: 'updating records' };
-          lastCleanupResult = errRes;
-          return errRes;
-        }
-      }
+      const { error } = await supabase.from('general_requests').update({ status: 'archived' }).in('id', genIds);
+      if (error) throw new Error(`Errore generali: ${error.message}`);
+      archivedGeneralRequests.push(...genIds);
     }
 
     const successResult = {
       error: null,
-      archivedRides: ridesToArchive.map(r => r.id),
-      cancelledJoinRequests: joinsToCancel.map(j => j.id),
-      archivedGeneralRequests: gensToArchive.map(g => g.id)
+      archivedRides,
+      cancelledJoinRequests,
+      archivedGeneralRequests
     };
     lastCleanupResult = successResult;
     return successResult;
   } catch (error) {
-    const errRes = { error };
+    const errRes = { error, archivedRides: [], cancelledJoinRequests: [], archivedGeneralRequests: [] };
     lastCleanupResult = errRes;
     return errRes;
   }
