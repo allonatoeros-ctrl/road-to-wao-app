@@ -25,8 +25,15 @@ export default function AdminPanel({
   const [expandedRides, setExpandedRides] = useState({});
   const [showHistory, setShowHistory] = useState(false);
   const [showTestData, setShowTestData] = useState(false);
+  const [showCleanupPreview, setShowCleanupPreview] = useState(false);
 
-  const handleCleanDemoBoard = async () => {
+  const testRides = rides.filter(isTestVercelRecord);
+  const testJoins = joinRequests.filter(isTestVercelRecord);
+  const testGenerals = generalRequests.filter(isTestVercelRecord);
+
+
+  const executeCleanDemoBoard = async () => {
+    setShowCleanupPreview(false);
     if (onCleanDemoBoard) {
       await onCleanDemoBoard();
       const lastResult = getLastCleanupResult();
@@ -104,6 +111,57 @@ export default function AdminPanel({
 
   return (
     <div className="cr-root">
+      {showCleanupPreview && (
+        <div className="cr-modal-overlay">
+          <div className="cr-modal-card">
+            <h2 className="cr-modal-title">Anteprima Pulizia</h2>
+            <div className="cr-modal-body">
+              <p>Rilevati i seguenti record di test nel database:</p>
+              <div className="cr-modal-stats">
+                <div className="cr-modal-stat-item">
+                  <span className="cr-modal-stat-label">Passaggi TEST VERCEL:</span>
+                  <span className="cr-modal-stat-value">{testRides.length}</span>
+                </div>
+                <div className="cr-modal-stat-item">
+                  <span className="cr-modal-stat-label">Richieste Join TEST VERCEL:</span>
+                  <span className="cr-modal-stat-value">{testJoins.length}</span>
+                </div>
+                <div className="cr-modal-stat-item">
+                  <span className="cr-modal-stat-label">Richieste Generali TEST VERCEL:</span>
+                  <span className="cr-modal-stat-value">{testGenerals.length}</span>
+                </div>
+              </div>
+              <p className="cr-modal-warning">
+                Verranno archiviati solo record TEST VERCEL. I dati reali non verranno toccati.
+              </p>
+            </div>
+            <div className="cr-modal-actions">
+              <button
+                type="button"
+                className="cr-modal-btn-cancel"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowCleanupPreview(false);
+                }}
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                className="cr-modal-btn-confirm"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  executeCleanDemoBoard();
+                }}
+              >
+                Conferma pulizia TEST
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* ── HEADER ─────────────────────────────────────────── */}
       <div className="cr-header">
         <div className="cr-header-top">
@@ -133,7 +191,11 @@ export default function AdminPanel({
               <button
                 type="button"
                 className="wao-secondary-button wao-display"
-                onClick={handleCleanDemoBoard}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowCleanupPreview(true);
+                }}
                 style={{
                   width: 'auto',
                   padding: '6px 14px',
