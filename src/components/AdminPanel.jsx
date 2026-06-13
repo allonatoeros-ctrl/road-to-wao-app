@@ -75,9 +75,18 @@ export default function AdminPanel({
     filteredJoinRequests.filter((j) => j.rideId === rideId && j.status === 'pending' && !j.archived);
 
   // ── HISTORY — approved + rejected joins ─────────────────────
-  const historyJoins = [...filteredJoinRequests]
-    .filter((j) => j.status === 'approved' || j.status === 'rejected')
-    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  const historyJoins = [
+    ...filteredJoinRequests.filter((j) =>
+      ['approved', 'rejected', 'cancelled', 'archived'].includes(j.status)
+    ),
+    ...filteredGeneralRequests
+      .filter((g) => ['archived', 'rejected'].includes(g.status))
+      .map((g) => ({
+        ...g,
+        rideSummary: `${g.departureCity} → WAO (Generale)`,
+      })),
+  ].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
 
   // legacy offers from requests that are not joins
   const legacyOffers = filteredRequests.filter(
