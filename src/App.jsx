@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import CosmicAppShell from './components/CosmicAppShell';
-import { fetchRides, createRide, getCurrentUser, getCurrentProfile, createJoinRequest, fetchJoinRequests, approveJoinRequest, rejectJoinRequest, getUnlockedCrewForRide, createGeneralRequest, fetchGeneralRequests, archiveGeneralRequest, archiveTestData, isTestVercelRecord } from './services/roadToWaoDb';
+import { fetchRides, createRide, getCurrentUser, getCurrentProfile, createJoinRequest, fetchJoinRequests, approveJoinRequest, rejectJoinRequest, getUnlockedCrewForRide, saveRideSecret, createGeneralRequest, fetchGeneralRequests, archiveGeneralRequest, archiveTestData, isTestVercelRecord } from './services/roadToWaoDb';
 import { supabase } from './services/supabaseClient';
 import SolarHeroBackground from './components/SolarHeroBackground';
 import BottomNav from './components/BottomNav';
@@ -245,11 +245,13 @@ function App() {
       .map(req => req.rideId);
 
     // Combine and unique
-    const allApprovedRideIds = Array.from(new Set([
-      ...driverRideIds,
-      ...passengerRideIds,
-      ...legacyPassengerRideIds
-    ]));
+    const allApprovedRideIds = isAdmin
+      ? rides.filter(r => isUuid(r.id)).map(r => r.id)
+      : Array.from(new Set([
+          ...driverRideIds,
+          ...passengerRideIds,
+          ...legacyPassengerRideIds
+        ]));
 
     allApprovedRideIds.forEach(rideId => {
       if (attemptedFetchRef.current.has(rideId)) return;
@@ -273,7 +275,7 @@ function App() {
         console.error(`Error unlocking crew for ride ${rideId}:`, err);
       });
     });
-  }, [currentUser, rides, joinRequests, requests]);
+  }, [currentUser, rides, joinRequests, requests, isAdmin]);
 
   useEffect(() => {
     if (currentTab !== 'profilo') {
@@ -970,6 +972,22 @@ function App() {
     joinRequests,
     generalRequests,
     requests,
+    onSaveTelegramLink: async (rideId, link) => {
+      try {
+        const { error } = await saveRideSecret(rideId, link);
+        if (error) {
+          console.error('Error saving Telegram link:', error);
+          alert('Errore nel salvataggio del link: ' + error.message);
+          return;
+        }
+        setRides(prev => prev.map(r => r.id === rideId ? { ...r, telegramUrl: link } : r));
+        setJoinRequests(prev => prev.map(req => (req.rideId === rideId && req.status === 'approved') ? { ...req, telegramUrl: link } : req));
+        setRequests(prev => prev.map(req => (req.rideId === rideId && req.status === 'approved') ? { ...req, telegramUrl: link } : req));
+        alert('Link salvato con successo!');
+      } catch (err) {
+        console.error('Unexpected error in onSaveTelegramLink:', err);
+      }
+    },
     onApproveJoin: async (joinId, rideId) => {
       if (isUuid(joinId)) {
         try {

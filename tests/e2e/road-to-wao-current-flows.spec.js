@@ -56,6 +56,7 @@ test.describe('Road to WAO - Mocked Diagnostic UI Suite', () => {
     ],
     joinRequests: [],
     generalRequests: [],
+    rideSecrets: [],
     deleteCallsCount: 0,
     patchCalls: []
   };
@@ -83,6 +84,7 @@ test.describe('Road to WAO - Mocked Diagnostic UI Suite', () => {
     ];
     db.joinRequests = [];
     db.generalRequests = [];
+    db.rideSecrets = [];
     db.deleteCallsCount = 0;
     db.patchCalls = [];
 
@@ -197,6 +199,36 @@ test.describe('Road to WAO - Mocked Diagnostic UI Suite', () => {
           }
         ])
       });
+    });
+
+    // Intercept GET and POST/UPSERT on ride_secrets
+    await page.route('**/rest/v1/ride_secrets**', async (route) => {
+      const method = route.request().method();
+      if (method === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(db.rideSecrets || [])
+        });
+      } else if (method === 'POST') {
+        const requestData = route.request().postDataJSON();
+        const payload = Array.isArray(requestData) ? requestData[0] : requestData;
+        
+        // Upsert behavior
+        if (!db.rideSecrets) db.rideSecrets = [];
+        const existing = db.rideSecrets.find(s => s.ride_id === payload.ride_id);
+        if (existing) {
+          existing.telegram_group_link = payload.telegram_group_link;
+        } else {
+          db.rideSecrets.push(payload);
+        }
+
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(payload)
+        });
+      }
     });
 
     // Intercept GET and POST rides
@@ -801,5 +833,43 @@ test.describe('Road to WAO - Mocked Diagnostic UI Suite', () => {
     await page.getByRole('button', { name: '← Indietro' }).click();
     await page.locator('.bottom-nav-bar').getByText('Bacheca').click();
     await expect(page.locator('.ride-card', { hasText: 'Roma' })).toBeVisible();
+  });
+
+  test('6. Telegram group link flow: Admin can save and update the link (Success)', async ({ page }) => {
+    db.rideSecrets = [];
+
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await dismissOnboarding(page);
+    await loginAsTestUser(page);
+
+    // Go to Control Room
+    await page.locator('.bottom-nav-bar').getByText('Messaggi').click();
+    await page.getByRole('button', { name: '⚙️ Control Room demo' }).click();
+
+    // Find the Roma ride header and click to expand
+    const rideHeader = page.locator('.cr-ride-header', { hasText: 'Roma' });
+    await rideHeader.click();
+
+    // Verify Telegram link input is visible
+    const input = page.locator('.cr-telegram-link-section input');
+    await expect(input).toBeVisible();
+
+    // Fill with invite link
+    const testLink = 'https://t.me/joinchat/mock_invite_link';
+    await input.fill(testLink);
+
+    // Setup dialog listener to accept the success alert
+    page.on('dialog', async (dialog) => {
+      await dialog.accept();
+    });
+
+    // Click "Salva link"
+    await page.getByRole('button', { name: 'Salva link' }).click();
+
+    // Verify it was updated in our intercepted database state
+    await expect.poll(() => {
+      const secret = db.rideSecrets?.find(s => s.ride_id === '7038e21a-e55b-433a-bc12-f046fdf4e4a1');
+      return secret ? secret.telegram_group_link : null;
+    }).toBe(testLink);
   });
 });

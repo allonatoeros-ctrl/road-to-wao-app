@@ -410,6 +410,29 @@ export async function getUnlockedCrewForRide(rideId) {
 }
 
 /**
+ * Saves or updates the private Telegram group link for a ride in ride_secrets.
+ * Admin can INSERT/UPDATE on ride_secrets.
+ */
+export async function saveRideSecret(rideId, telegramLink) {
+  if (!isSupabaseConfigured) {
+    return { data: null, error: new Error('Supabase is not configured') };
+  }
+  if (!rideId) {
+    return { data: null, error: new Error('Invalid ride ID') };
+  }
+  try {
+    const { data, error } = await supabase
+      .from('ride_secrets')
+      .upsert({ ride_id: rideId, telegram_group_link: telegramLink })
+      .select()
+      .single();
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+/**
  * Fetches all join requests (typically filtered by requester or driver).
  * Table: join_requests
  */

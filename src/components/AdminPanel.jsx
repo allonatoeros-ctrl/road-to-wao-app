@@ -21,9 +21,11 @@ export default function AdminPanel({
   onClose,
   isAdmin = false,
   onCleanDemoBoard,
+  onSaveTelegramLink,
 }) {
   const [expandedRides, setExpandedRides] = useState({});
   const [showHistory, setShowHistory] = useState(false);
+  const [editedLinks, setEditedLinks] = useState({});
   const [showTestData, setShowTestData] = useState(false);
   const [showCleanupPreview, setShowCleanupPreview] = useState(false);
 
@@ -313,6 +315,56 @@ export default function AdminPanel({
                     {/* Expandable join request list */}
                     {isOpen && (
                       <div className="cr-join-list">
+                        <div className="cr-telegram-link-section" style={{
+                          padding: '10px 14px',
+                          borderBottom: '1px solid rgba(255,255,255,0.06)',
+                          background: 'rgba(255, 255, 255, 0.01)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '6px',
+                          marginBottom: '10px'
+                        }}>
+                          <label style={{ fontSize: '11px', color: 'var(--amber-gold)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Link gruppo Telegram
+                          </label>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <input
+                              type="text"
+                              placeholder="Incolla il link invito Telegram..."
+                              value={editedLinks[ride.id] !== undefined ? editedLinks[ride.id] : (ride.telegramUrl || '')}
+                              onChange={(e) => setEditedLinks(prev => ({ ...prev, [ride.id]: e.target.value }))}
+                              style={{
+                                flex: 1,
+                                background: 'rgba(0, 0, 0, 0.3)',
+                                border: '1px solid rgba(255, 255, 255, 0.12)',
+                                borderRadius: '8px',
+                                padding: '6px 12px',
+                                color: 'var(--text-main, #ffffff)',
+                                fontSize: '12.5px',
+                                outline: 'none'
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => onSaveTelegramLink && onSaveTelegramLink(ride.id, editedLinks[ride.id] !== undefined ? editedLinks[ride.id] : (ride.telegramUrl || ''))}
+                              style={{
+                                background: 'linear-gradient(135deg, var(--amber-gold, #ffc547), var(--solar-orange, #ff6a00))',
+                                border: 'none',
+                                borderRadius: '8px',
+                                padding: '6px 14px',
+                                color: '#0b0c1e',
+                                fontSize: '11.5px',
+                                fontWeight: '700',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Salva link
+                            </button>
+                          </div>
+                          <span style={{ fontSize: '10.5px', color: 'var(--text-soft)', opacity: 0.8, lineHeight: '1.4' }}>
+                            Crea il gruppo su Telegram, poi incolla qui il link invito. Sarà visibile solo agli approvati.
+                          </span>
+                        </div>
                         {rideJoins.length === 0 ? (
                           <div className="cr-join-row">
                             <span className="cr-join-detail" style={{ fontStyle: 'italic' }}>
