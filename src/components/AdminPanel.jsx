@@ -583,35 +583,77 @@ export default function AdminPanel({
               </p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {crewCandidates.slice(0, 5).map(({ ride, joins, compatGenerals }) => (
-                  <div key={ride.id} className="cr-candidate-card">
-                    <span className="cr-candidate-ride">
-                      🚗 {ride.departureCity} → {ride.destination || 'WAO'} · {ride.driver}
-                    </span>
-
-                    {joins.slice(0, 3).map((j) => (
-                      <div key={j.id} className="cr-candidate-rider-row">
-                        <span>{j.nickname}</span>
-                        <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>
-                          👥 {j.peopleCount || j.passengers || 1}
+                {crewCandidates.slice(0, 5).map(({ ride, joins, compatGenerals }) => {
+                  const rideDate = ride.departureDate || ride.departure_date || 'data n/d';
+                  const rideSeats = ride.seatsAvailable ?? ride.seats_available ?? ride.availableSeats ?? 0;
+                  return (
+                    <div key={ride.id} className="cr-candidate-card">
+                      <span className="cr-candidate-ride">
+                        🚗 {ride.departureCity} → {ride.destination || 'WAO'} · {ride.driver}
+                      </span>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '3px' }}>
+                        <span style={{ fontSize: '10px', background: 'rgba(255,197,71,0.1)', color: 'var(--amber-gold)', border: '1px solid rgba(255,197,71,0.2)', borderRadius: '10px', padding: '1px 7px' }}>
+                          📅 {rideDate}
+                        </span>
+                        <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '1px 7px' }}>
+                          💺 {rideSeats} posti
                         </span>
                       </div>
-                    ))}
 
-                    {compatGenerals.length > 0 && (
-                      <div
-                        style={{
-                          fontSize: '10.5px',
-                          color: '#d18eff',
-                          marginTop: '2px',
-                          opacity: 0.8,
-                        }}
-                      >
-                        + {compatGenerals.length} richiesta generale compatibile
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      {joins.slice(0, 3).map((j) => (
+                        <div key={j.id} className="cr-candidate-rider-row">
+                          <span>{j.nickname}</span>
+                          <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>
+                            👥 {j.peopleCount || j.passengers || 1}
+                          </span>
+                        </div>
+                      ))}
+
+                      {compatGenerals.length > 0 && (
+                        <div style={{ marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          {compatGenerals.slice(0, 3).map((g) => {
+                            const gDate = g.departureDate || g.departure_date || 'data n/d';
+                            const gPeople = g.passengers ?? g.peopleCount ?? g.people_count ?? 1;
+                            const dateMismatch = gDate !== 'data n/d' && rideDate !== 'data n/d' && gDate !== rideDate;
+                            const seatsMismatch = gPeople > rideSeats;
+                            return (
+                              <div key={g.id} style={{ background: 'rgba(177,43,255,0.07)', borderRadius: '6px', padding: '4px 8px', fontSize: '10.5px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                  <span style={{ color: '#d18eff', fontWeight: 600 }}>{g.nickname || '—'}</span>
+                                  <span style={{ background: 'rgba(177,43,255,0.15)', color: '#d18eff', border: '1px solid rgba(177,43,255,0.25)', borderRadius: '10px', padding: '1px 6px' }}>
+                                    📅 {gDate}
+                                  </span>
+                                  <span style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '1px 6px' }}>
+                                    👥 {gPeople}
+                                  </span>
+                                </div>
+                                {(dateMismatch || seatsMismatch) && (
+                                  <div style={{ marginTop: '3px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                    {dateMismatch && (
+                                      <span style={{ fontSize: '9.5px', color: '#ffaa44' }}>
+                                        ⚠️ Date diverse: ride {rideDate} · richiesta {gDate}
+                                      </span>
+                                    )}
+                                    {seatsMismatch && (
+                                      <span style={{ fontSize: '9.5px', color: '#ff6b6b' }}>
+                                        ⚠️ {gPeople} persone richieste, solo {rideSeats} posti disponibili
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                          {compatGenerals.length > 3 && (
+                            <div style={{ fontSize: '10px', color: '#d18eff', opacity: 0.7, paddingLeft: '4px' }}>
+                              +{compatGenerals.length - 3} altre richieste compatibili
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
