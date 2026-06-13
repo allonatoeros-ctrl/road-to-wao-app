@@ -478,13 +478,23 @@ export default function ProfilePanel({
   };
 
   // 1. Compute counts and activities first
+  const isActiveOrPending = (r) => {
+    const status = r.status || 'pending';
+    return (status === 'pending' || status === 'approved' || status === 'active') && !r.archived;
+  };
+
+  const isArchivedOrCancelled = (r) => {
+    const status = r.status || 'pending';
+    return status === 'cancelled' || status === 'rejected' || status === 'archived' || r.archived;
+  };
+
   if (hasNewModelData) {
     statPending = (joinRequests || []).filter(r => r.status === 'pending').length;
     statApproved = (joinRequests || []).filter(r => r.status === 'approved').length;
     statGeneralActive = (generalRequests || []).filter(r => r.status === 'active').length;
     statRejectedArchived = 
-      (joinRequests || []).filter(r => r.status === 'rejected' || r.archived).length +
-      (generalRequests || []).filter(r => r.status === 'rejected' || r.archived).length;
+      (joinRequests || []).filter(isArchivedOrCancelled).length +
+      (generalRequests || []).filter(isArchivedOrCancelled).length;
 
     const allNewRequests = [
       ...(joinRequests || []).map(r => ({ ...r, reqType: 'join' })),
@@ -497,15 +507,15 @@ export default function ProfilePanel({
       return dateB - dateA;
     });
 
-    const nonArchivedNew = sortedNew.filter(r => !r.archived);
-    latestRequest = nonArchivedNew[0];
-    recentActivities = nonArchivedNew.slice(0, 3);
+    const activeNew = sortedNew.filter(isActiveOrPending);
+    latestRequest = activeNew[0];
+    recentActivities = activeNew.slice(0, 3);
   } else {
     const filteredRequests = (requests || []).filter(r => !isDuplicateLegacyOffer(r));
     statPending = filteredRequests.filter(r => !r.status || r.status === 'pending').length;
     statApproved = filteredRequests.filter(r => r.status === 'approved').length;
     statGeneralActive = 0;
-    statRejectedArchived = filteredRequests.filter(r => r.status === 'rejected' || r.archived).length;
+    statRejectedArchived = filteredRequests.filter(isArchivedOrCancelled).length;
 
     const sortedLegacy = [...filteredRequests].sort((a, b) => {
       const dateA = a.createdAt ? new Date(a.createdAt).getTime() : a.id || 0;
@@ -513,9 +523,9 @@ export default function ProfilePanel({
       return dateB - dateA;
     });
 
-    const nonArchivedLegacy = sortedLegacy.filter(r => !r.archived);
-    latestRequest = nonArchivedLegacy[0];
-    recentActivities = nonArchivedLegacy.slice(0, 3);
+    const activeLegacy = sortedLegacy.filter(isActiveOrPending);
+    latestRequest = activeLegacy[0];
+    recentActivities = activeLegacy.slice(0, 3);
   }
 
   // 2. Set Travel Status based on unified priority logic

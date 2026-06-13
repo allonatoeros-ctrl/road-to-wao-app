@@ -189,6 +189,9 @@ function App() {
     if (!currentUser) {
       setIsAdmin(false);
       setUserProfile(DEFAULT_PROFILE);
+      setJoinRequests([]);
+      setGeneralRequests([]);
+      setRequests([]);
       return;
     }
     let active = true;
@@ -395,111 +398,108 @@ function App() {
 
         if (!active) return;
 
-        if (rawRequests && rawRequests.length > 0) {
-          let profileMap = {};
-          try {
-            const { data: profiles } = await supabase
-              .from('profiles')
-              .select('id, nickname');
-            if (profiles) {
-              profiles.forEach(p => {
-                if (p.id && p.nickname) {
-                  profileMap[p.id] = p.nickname;
-                }
-              });
-            }
-          } catch (err) {
-            console.error('Error fetching profiles for join requests:', err);
+        if (!rawRequests || rawRequests.length === 0) {
+          setJoinRequests([]);
+          setRequests(prev => prev.filter(r => r.type !== 'join' || !r.rideId));
+          return;
+        }
+
+        let profileMap = {};
+        try {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, nickname');
+          if (profiles) {
+            profiles.forEach(p => {
+              if (p.id && p.nickname) {
+                profileMap[p.id] = p.nickname;
+              }
+            });
+          }
+        } catch (err) {
+          console.error('Error fetching profiles for join requests:', err);
+        }
+
+        const mappedJoins = rawRequests.map(req => {
+          const ride = rides.find(r => String(r.id) === String(req.ride_id));
+          const requesterName = profileMap[req.requester_id] || `Rider-${req.requester_id.substring(0, 5)}`;
+          
+          let luggageNeed = null;
+          let cleanMessage = req.message || '';
+          if (req.message && req.message.includes('Luggage:')) {
+            const parts = req.message.split('Luggage:');
+            cleanMessage = parts[0].trim();
+            luggageNeed = parts[1].trim();
           }
 
-          const mappedJoins = rawRequests.map(req => {
-            const ride = rides.find(r => String(r.id) === String(req.ride_id));
-            const requesterName = profileMap[req.requester_id] || `Rider-${req.requester_id.substring(0, 5)}`;
-            
-            let luggageNeed = null;
-            let cleanMessage = req.message || '';
-            if (req.message && req.message.includes('Luggage:')) {
-              const parts = req.message.split('Luggage:');
-              cleanMessage = parts[0].trim();
-              luggageNeed = parts[1].trim();
-            }
+          const isArchivedStatus = req.status === 'cancelled' || req.status === 'archived' || req.status === 'rejected';
 
-            return {
-              id: req.id,
-              rideId: req.ride_id,
-              requesterId: req.requester_id,
-              rideSummary: ride 
-                ? `${ride.departureCity}/${ride.departureDate}/${ride.travelTime}/${ride.driver}`
-                : `Ride-${req.ride_id}`,
-              type: 'join',
-              status: req.status || 'pending',
-              archived: false,
-              nickname: requesterName,
-              departureCity: ride?.departureCity || '',
-              tripType: ride?.tripType || '',
-              travelTime: ride?.travelTime || '',
-              peopleCount: req.seats_requested || 1,
-              passengers: req.seats_requested || 1,
-              luggageNeed: luggageNeed,
-              message: cleanMessage,
-              createdAt: req.created_at || new Date().toISOString()
-            };
-          });
+          return {
+            id: req.id,
+            rideId: req.ride_id,
+            requesterId: req.requester_id,
+            driverId: ride?.driverId || ride?.driver_id || null,
+            rideSummary: ride 
+              ? `${ride.departureCity}/${ride.departureDate}/${ride.travelTime}/${ride.driver}`
+              : `Ride-${req.ride_id}`,
+            type: 'join',
+            status: req.status || 'pending',
+            archived: isArchivedStatus,
+            nickname: requesterName,
+            departureCity: ride?.departureCity || '',
+            tripType: ride?.tripType || '',
+            travelTime: ride?.travelTime || '',
+            peopleCount: req.seats_requested || 1,
+            passengers: req.seats_requested || 1,
+            luggageNeed: luggageNeed,
+            message: cleanMessage,
+            createdAt: req.created_at || new Date().toISOString()
+          };
+        });
 
-          const mappedLegacyRequests = rawRequests.map(req => {
-            const ride = rides.find(r => String(r.id) === String(req.ride_id));
-            const requesterName = profileMap[req.requester_id] || `Rider-${req.requester_id.substring(0, 5)}`;
-            
-            let luggageNeed = null;
-            let cleanMessage = req.message || '';
-            if (req.message && req.message.includes('Luggage:')) {
-              const parts = req.message.split('Luggage:');
-              cleanMessage = parts[0].trim();
-              luggageNeed = parts[1].trim();
-            }
+        const mappedLegacyRequests = rawRequests.map(req => {
+          const ride = rides.find(r => String(r.id) === String(req.ride_id));
+          const requesterName = profileMap[req.requester_id] || `Rider-${req.requester_id.substring(0, 5)}`;
+          
+          let luggageNeed = null;
+          let cleanMessage = req.message || '';
+          if (req.message && req.message.includes('Luggage:')) {
+            const parts = req.message.split('Luggage:');
+            cleanMessage = parts[0].trim();
+            luggageNeed = parts[1].trim();
+          }
 
-            return {
-              id: req.id,
-              type: 'join',
-              status: req.status || 'pending',
-              archived: false,
-              route: ride 
-                ? `${ride.departureCity} → ${ride.destination || 'WAO'}`
-                : `Ride → WAO`,
-              departure: ride?.departureCity || '',
-              departureCity: ride?.departureCity || '',
-              nickname: requesterName,
-              passengers: req.seats_requested || 1,
-              peopleCount: req.seats_requested || 1,
-              tripType: ride?.tripType || '',
-              travelTime: ride?.travelTime || '',
-              luggageNeed: luggageNeed,
-              message: cleanMessage,
-              rideId: req.ride_id,
-              requesterId: req.requester_id,
-              createdAt: req.created_at || new Date().toISOString()
-            };
-          });
+          const isArchivedStatus = req.status === 'cancelled' || req.status === 'archived' || req.status === 'rejected';
 
-          setJoinRequests(prev => {
-            const updated = prev.map(r => {
-              const match = mappedJoins.find(m => String(m.id) === String(r.id));
-              return match ? match : r;
-            });
-            const existingIds = new Set(prev.map(r => String(r.id)));
-            const newJoins = mappedJoins.filter(r => !existingIds.has(String(r.id)));
-            return [...newJoins, ...updated];
-          });
-          setRequests(prev => {
-            const updated = prev.map(r => {
-              const match = mappedLegacyRequests.find(m => String(m.id) === String(r.id));
-              return match ? match : r;
-            });
-            const existingIds = new Set(prev.map(r => String(r.id)));
-            const newRequests = mappedLegacyRequests.filter(r => !existingIds.has(String(r.id)));
-            return [...newRequests, ...updated];
-          });
-        }
+          return {
+            id: req.id,
+            type: 'join',
+            status: req.status || 'pending',
+            archived: isArchivedStatus,
+            route: ride 
+              ? `${ride.departureCity} → ${ride.destination || 'WAO'}`
+              : `Ride → WAO`,
+            departure: ride?.departureCity || '',
+            departureCity: ride?.departureCity || '',
+            nickname: requesterName,
+            passengers: req.seats_requested || 1,
+            peopleCount: req.seats_requested || 1,
+            tripType: ride?.tripType || '',
+            travelTime: ride?.travelTime || '',
+            luggageNeed: luggageNeed,
+            message: cleanMessage,
+            rideId: req.ride_id,
+            requesterId: req.requester_id,
+            driverId: ride?.driverId || ride?.driver_id || null,
+            createdAt: req.created_at || new Date().toISOString()
+          };
+        });
+
+        setJoinRequests(mappedJoins);
+        setRequests(prev => [
+          ...mappedLegacyRequests,
+          ...prev.filter(r => r.type !== 'join' || !r.rideId)
+        ]);
       } catch (err) {
         console.error('Unexpected error in loadSupabaseJoinRequests:', err);
       }
@@ -531,91 +531,87 @@ function App() {
 
         if (!active) return;
 
-        if (rawRequests && rawRequests.length > 0) {
-          let profileMap = {};
-          try {
-            const { data: profiles } = await supabase
-              .from('profiles')
-              .select('id, nickname');
-            if (profiles) {
-              profiles.forEach(p => {
-                if (p.id && p.nickname) {
-                  profileMap[p.id] = p.nickname;
-                }
-              });
-            }
-          } catch (err) {
-            console.error('Error fetching profiles for general requests:', err);
-          }
-
-          const mappedGenerals = rawRequests.map(req => {
-            const requesterName = profileMap[req.requester_id] || `Rider-${req.requester_id.substring(0, 5)}`;
-            return {
-              id: req.id,
-              type: 'general',
-              status: req.status || 'pending',
-              archived: req.status === 'archived',
-              nickname: requesterName,
-              departureCity: req.from_city,
-              tripType: req.return_date ? 'andata e ritorno' : 'solo andata',
-              travelTime: req.departure_time_label,
-              peopleCount: req.people_count || 1,
-              passengers: req.people_count || 1,
-              luggageNeed: 'medio',
-              luggageDetails: '',
-              nearbyFlexible: req.from_area ? 'sì' : 'no',
-              message: req.message,
-              departureDate: req.departure_date,
-              returnDate: req.return_date,
-              createdAt: req.created_at || new Date().toISOString()
-            };
-          });
-
-          const mappedLegacyRequests = rawRequests.map(req => {
-            const requesterName = profileMap[req.requester_id] || `Rider-${req.requester_id.substring(0, 5)}`;
-            return {
-              id: req.id,
-              type: 'join',
-              status: req.status || 'pending',
-              archived: req.status === 'archived',
-              route: `${req.from_city} → WAO (Generale)`,
-              departure: req.from_city,
-              departureCity: req.from_city,
-              nickname: requesterName,
-              passengers: req.people_count || 1,
-              peopleCount: req.people_count || 1,
-              tripType: req.return_date ? 'andata e ritorno' : 'solo andata',
-              travelTime: req.departure_time_label,
-              luggageNeed: 'medio',
-              luggageDetails: '',
-              nearbyFlexible: req.from_area ? 'sì' : 'no',
-              message: req.message,
-              departureDate: req.departure_date,
-              returnDate: req.return_date,
-              createdAt: req.created_at || new Date().toISOString()
-            };
-          });
-
-          setGeneralRequests(prev => {
-            const updated = prev.map(r => {
-              const match = mappedGenerals.find(m => String(m.id) === String(r.id));
-              return match ? match : r;
-            });
-            const existingIds = new Set(prev.map(r => String(r.id)));
-            const newGenerals = mappedGenerals.filter(r => !existingIds.has(String(r.id)));
-            return [...newGenerals, ...updated];
-          });
-
-          setRequests(prev => {
-            const updated = prev.map(r => {
-              const match = mappedLegacyRequests.find(m => String(m.id) === String(r.id));
-              return match ? match : r;
-            });
-            const existingIds = new Set(prev.map(r => String(r.id)));
-            const newRequests = mappedLegacyRequests.filter(r => !existingIds.has(String(r.id)));
-            return [...newRequests, ...updated];
-          });
+        if (!rawRequests || rawRequests.length === 0) {
+          setGeneralRequests([]);
+          setRequests(prev => prev.filter(r => r.type !== 'join' || r.rideId));
+          return;
         }
+
+        let profileMap = {};
+        try {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, nickname');
+          if (profiles) {
+            profiles.forEach(p => {
+              if (p.id && p.nickname) {
+                profileMap[p.id] = p.nickname;
+              }
+            });
+          }
+        } catch (err) {
+          console.error('Error fetching profiles for general requests:', err);
+        }
+
+        const mappedGenerals = rawRequests.map(req => {
+          const requesterName = profileMap[req.requester_id] || `Rider-${req.requester_id.substring(0, 5)}`;
+          const isArchivedStatus = req.status === 'cancelled' || req.status === 'archived' || req.status === 'rejected';
+
+          return {
+            id: req.id,
+            type: 'general',
+            status: req.status || 'pending',
+            archived: isArchivedStatus,
+            nickname: requesterName,
+            requesterId: req.requester_id,
+            departureCity: req.from_city,
+            tripType: req.return_date ? 'andata e ritorno' : 'solo andata',
+            travelTime: req.departure_time_label,
+            peopleCount: req.people_count || 1,
+            passengers: req.people_count || 1,
+            luggageNeed: 'medio',
+            luggageDetails: '',
+            nearbyFlexible: req.from_area ? 'sì' : 'no',
+            message: req.message,
+            departureDate: req.departure_date,
+            returnDate: req.return_date,
+            createdAt: req.created_at || new Date().toISOString()
+          };
+        });
+
+        const mappedLegacyRequests = rawRequests.map(req => {
+          const requesterName = profileMap[req.requester_id] || `Rider-${req.requester_id.substring(0, 5)}`;
+          const isArchivedStatus = req.status === 'cancelled' || req.status === 'archived' || req.status === 'rejected';
+
+          return {
+            id: req.id,
+            type: 'join',
+            status: req.status || 'pending',
+            archived: isArchivedStatus,
+            route: `${req.from_city} → WAO (Generale)`,
+            departure: req.from_city,
+            departureCity: req.from_city,
+            nickname: requesterName,
+            requesterId: req.requester_id,
+            passengers: req.people_count || 1,
+            peopleCount: req.people_count || 1,
+            tripType: req.return_date ? 'andata e ritorno' : 'solo andata',
+            travelTime: req.departure_time_label,
+            luggageNeed: 'medio',
+            luggageDetails: '',
+            nearbyFlexible: req.from_area ? 'sì' : 'no',
+            message: req.message,
+            departureDate: req.departure_date,
+            returnDate: req.return_date,
+            createdAt: req.created_at || new Date().toISOString()
+          };
+        });
+
+        setGeneralRequests(mappedGenerals);
+        setRequests(prev => [
+          ...mappedLegacyRequests,
+          ...prev.filter(r => r.type !== 'join' || r.rideId)
+        ]);
       } catch (err) {
         console.error('Unexpected error in loadSupabaseGeneralRequests:', err);
       }
@@ -1267,41 +1263,61 @@ function App() {
           />
         )}
 
-        {currentTab === 'messaggi' && (
-          <div className="app-content">
-            <MessagesPanel 
-              requests={requests} 
-              rides={rides}
-              joinRequests={joinRequests}
-              generalRequests={generalRequests}
-              userProfile={userProfile}
-              onFindRide={() => setCurrentTab('bacheca')} 
-              onOpenControlRoom={() => setCurrentTab('control-room')}
-              onArchiveRequest={(id) => {
-                setRequests(prev => prev.map(r => r.id === id ? { ...r, archived: true } : r));
-                setJoinRequests(prev => prev.map(r => r.id === id ? { ...r, archived: true } : r));
-                setGeneralRequests(prev => prev.map(r => r.id === id ? { ...r, archived: true } : r));
-              }}
-              isAdmin={isAdmin}
-            />
-          </div>
-        )}
+        {(() => {
+          const userFilteredJoinRequests = currentUser 
+            ? joinRequests.filter(r => r.requesterId === currentUser.id || r.driverId === currentUser.id)
+            : joinRequests;
 
-        {currentTab === 'profilo' && (
-          <div className="app-content">
-            <ProfilePanel 
-              requests={requests} 
-              rides={rides}
-              joinRequests={joinRequests}
-              generalRequests={generalRequests}
-              userProfile={userProfile}
-              onUpdateProfile={handleUpdateProfile}
-              onNavigateToBacheca={() => setCurrentTab('bacheca')} 
-              onOpenControlRoom={() => setCurrentTab('control-room')}
-              isAdmin={isAdmin}
-            />
-          </div>
-        )}
+          const userFilteredGeneralRequests = currentUser
+            ? generalRequests.filter(r => r.requesterId === currentUser.id)
+            : generalRequests;
+
+          const userFilteredRequests = currentUser
+            ? requests.filter(r => r.requesterId === currentUser.id || r.driverId === currentUser.id)
+            : requests;
+
+          if (currentTab === 'messaggi') {
+            return (
+              <div className="app-content">
+                <MessagesPanel 
+                  requests={userFilteredRequests} 
+                  rides={rides}
+                  joinRequests={userFilteredJoinRequests}
+                  generalRequests={userFilteredGeneralRequests}
+                  userProfile={userProfile}
+                  onFindRide={() => setCurrentTab('bacheca')} 
+                  onOpenControlRoom={() => setCurrentTab('control-room')}
+                  onArchiveRequest={(id) => {
+                    setRequests(prev => prev.map(r => r.id === id ? { ...r, archived: true } : r));
+                    setJoinRequests(prev => prev.map(r => r.id === id ? { ...r, archived: true } : r));
+                    setGeneralRequests(prev => prev.map(r => r.id === id ? { ...r, archived: true } : r));
+                  }}
+                  isAdmin={isAdmin}
+                />
+              </div>
+            );
+          }
+
+          if (currentTab === 'profilo') {
+            return (
+              <div className="app-content">
+                <ProfilePanel 
+                  requests={userFilteredRequests} 
+                  rides={rides}
+                  joinRequests={userFilteredJoinRequests}
+                  generalRequests={userFilteredGeneralRequests}
+                  userProfile={userProfile}
+                  onUpdateProfile={handleUpdateProfile}
+                  onNavigateToBacheca={() => setCurrentTab('bacheca')} 
+                  onOpenControlRoom={() => setCurrentTab('control-room')}
+                  isAdmin={isAdmin}
+                />
+              </div>
+            );
+          }
+
+          return null;
+        })()}
 
 
         {/* Barra di Navigazione Fissa in Basso */}

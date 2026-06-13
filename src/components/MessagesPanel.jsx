@@ -63,9 +63,13 @@ export default function MessagesPanel({
     return dateB - dateA;
   });
 
-  const activeNewRequests = sortedNewRequests.filter(r => r.status !== 'rejected' && !r.archived);
-  const rejectedNewToArchive = sortedNewRequests.filter(r => r.status === 'rejected' && !r.archived);
-  const archivedNewRequests = sortedNewRequests.filter(r => r.archived === true);
+  const activeNewRequests = sortedNewRequests.filter(r => 
+    (r.status === 'pending' || r.status === 'approved' || r.status === 'active') && !r.archived
+  );
+  const rejectedNewToArchive = []; // Go straight to archive section
+  const archivedNewRequests = sortedNewRequests.filter(r => 
+    r.status === 'cancelled' || r.status === 'rejected' || r.status === 'archived' || r.archived === true
+  );
 
   // -------------------------------------------------------------
   // LEGACY MODEL LOGIC (FALLBACK)
@@ -78,9 +82,13 @@ export default function MessagesPanel({
 
   const filteredLegacyRequests = sortedLegacyRequests.filter(r => !isDuplicateLegacyOffer(r));
 
-  const activeLegacyRequests = filteredLegacyRequests.filter(r => r.status !== 'rejected');
-  const rejectedLegacyToArchive = filteredLegacyRequests.filter(r => r.status === 'rejected' && !r.archived);
-  const archivedLegacyRequests = filteredLegacyRequests.filter(r => r.archived === true);
+  const activeLegacyRequests = filteredLegacyRequests.filter(r => 
+    (r.status === 'pending' || r.status === 'approved' || r.status === 'active') && !r.archived
+  );
+  const rejectedLegacyToArchive = []; // Go straight to archive section
+  const archivedLegacyRequests = filteredLegacyRequests.filter(r => 
+    r.status === 'cancelled' || r.status === 'rejected' || r.status === 'archived' || r.archived === true
+  );
 
   // -------------------------------------------------------------
   // CARD RENDERERS
