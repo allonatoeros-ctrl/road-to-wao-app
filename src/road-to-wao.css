@@ -382,6 +382,7 @@
 .wao-card.card-primary {
   border-color: rgba(255, 106, 0, 0.38);
   box-shadow: 0 8px 25px rgba(255, 106, 0, 0.08), var(--shadow-card);
+  background: rgba(14, 13, 38, 0.82);
 }
 
 .wao-card.card-secondary {
