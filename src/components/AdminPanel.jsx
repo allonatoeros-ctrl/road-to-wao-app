@@ -96,7 +96,16 @@ export default function AdminPanel({
   );
 
   // ── RIGHT — general requests ─────────────────────────────────
-  const activeGenReqs = filteredGeneralRequests.filter((r) => !r.archived);
+  const activeGenReqs = filteredGeneralRequests
+    .filter((r) => !r.archived)
+    .sort((a, b) => {
+      const dA = a.departureDate || a.departure_date;
+      const dB = b.departureDate || b.departure_date;
+      if (!dA && !dB) return 0;
+      if (!dA) return 1;
+      if (!dB) return -1;
+      return new Date(dA) - new Date(dB);
+    });
   const archivedGenReqs = filteredGeneralRequests.filter((r) => r.archived);
 
   // ── RIGHT — crew candidates (read-only) ──────────────────────
