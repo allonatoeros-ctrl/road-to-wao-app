@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import CosmicAppShell from './components/CosmicAppShell';
-import { fetchRides, createRide, getCurrentUser, getCurrentProfile, createJoinRequest, fetchJoinRequests, approveJoinRequest, rejectJoinRequest, getUnlockedCrewForRide, saveRideSecret, createGeneralRequest, fetchGeneralRequests, archiveGeneralRequest, archiveTestData, isTestVercelRecord } from './services/roadToWaoDb';
+import { fetchRides, createRide, getCurrentUser, getCurrentProfile, createJoinRequest, fetchJoinRequests, approveJoinRequest, rejectJoinRequest, getUnlockedCrewForRide, saveRideSecret, createGeneralRequest, fetchGeneralRequests, archiveGeneralRequest, archiveTestData, isTestVercelRecord, subscribeToRoadToWaoChanges } from './services/roadToWaoDb';
 import { supabase } from './services/supabaseClient';
 import SolarHeroBackground from './components/SolarHeroBackground';
 import BottomNav from './components/BottomNav';
@@ -139,6 +139,9 @@ function App() {
   const [passwordRecoveryMode, setPasswordRecoveryMode] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
+  // Realtime trigger: refreshes Supabase-backed lists. Full ride replacement/update logic is handled in a later task.
+  const [realtimeTick, setRealtimeTick] = useState(0);
+
   const attemptedFetchRef = useRef(new Set());
   const lastUserRef = useRef(null);
 
@@ -225,6 +228,14 @@ function App() {
       setCurrentTab('casa');
     }
   }, [currentTab, isAdmin]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const channel = subscribeToRoadToWaoChanges(() => {
+      setRealtimeTick(t => t + 1);
+    });
+    return () => { supabase.removeChannel(channel); };
+  }, [currentUser]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -379,7 +390,7 @@ function App() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [realtimeTick]);
 
   useEffect(() => {
     let active = true;
@@ -512,7 +523,7 @@ function App() {
     return () => {
       active = false;
     };
-  }, [currentTab, rides]);
+  }, [currentTab, rides, realtimeTick]);
 
   useEffect(() => {
     let active = true;
@@ -624,7 +635,7 @@ function App() {
     return () => {
       active = false;
     };
-  }, [currentTab]);
+  }, [currentTab, realtimeTick]);
 
   const [userProfile, setUserProfile] = useState(() => {
     const saved = localStorage.getItem('wao_profile');
