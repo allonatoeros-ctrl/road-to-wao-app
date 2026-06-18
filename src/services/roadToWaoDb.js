@@ -298,6 +298,77 @@ export async function fetchRides() {
 }
 
 /**
+ * Fetches all rides with detailed admin-only fields merged.
+ * Table: rides, profiles, profile_secrets, ride_secrets
+ */
+export async function fetchAdminRidesDetailed() {
+  if (!isSupabaseConfigured) {
+    return { data: [], error: new Error('Supabase is not configured') };
+  }
+  try {
+    const [ridesRes, profilesRes, secretsRes, rideSecretsRes] = await Promise.all([
+      supabase.from('rides').select('*').order('created_at', { ascending: false }),
+      supabase.from('profiles').select('id, nickname'),
+      supabase.from('profile_secrets').select('id, telegram_username, instagram_username'),
+      supabase.from('ride_secrets').select('ride_id, telegram_group_link')
+    ]);
+
+    if (ridesRes.error) throw ridesRes.error;
+    if (profilesRes.error) throw profilesRes.error;
+
+    const profileMap = {};
+    if (profilesRes.data) {
+      profilesRes.data.forEach(p => {
+        profileMap[p.id] = { nickname: p.nickname };
+      });
+    }
+
+    const secretsData = (secretsRes && !secretsRes.error) ? secretsRes.data : [];
+    if (secretsData) {
+      secretsData.forEach(s => {
+        if (profileMap[s.id]) {
+          profileMap[s.id].telegram_username = s.telegram_username;
+          profileMap[s.id].instagram_username = s.instagram_username;
+        }
+      });
+    }
+
+    const rideSecretsMap = {};
+    const rideSecretsData = (rideSecretsRes && !rideSecretsRes.error) ? rideSecretsRes.data : [];
+    if (rideSecretsData) {
+      rideSecretsData.forEach(rs => {
+        rideSecretsMap[rs.ride_id] = rs.telegram_group_link;
+      });
+    }
+
+    const detailedRides = (ridesRes.data || []).map(ride => {
+      const driverProfile = profileMap[ride.driver_id] || {};
+      return {
+        ...ride,
+        driver: driverProfile.nickname || `Rider-${ride.driver_id.substring(0, 5)}`,
+        driverId: ride.driver_id,
+        telegram_username: driverProfile.telegram_username || null,
+        instagram_username: driverProfile.instagram_username || null,
+        telegramUrl: rideSecretsMap[ride.id] || null,
+        departureCity: ride.departure_city,
+        departureDate: ride.departure_date,
+        returnDate: ride.return_date,
+        travelTime: ride.departure_time_label,
+        seatsTotal: ride.seats_total,
+        seatsAvailable: ride.seats_available,
+        stops: ride.departure_area || '',
+        destination: ride.to_event || 'WAO'
+      };
+    });
+
+    return { data: detailedRides, error: null };
+  } catch (error) {
+    return { data: [], error };
+  }
+}
+
+
+/**
  * Inserts a new ride record.
  * Table: rides
  */

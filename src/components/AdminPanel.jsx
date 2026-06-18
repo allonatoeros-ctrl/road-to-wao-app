@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { isTestVercelRecord, getLastCleanupResult } from '../services/roadToWaoDb';
+import { useState, useEffect } from 'react';
+import { isTestVercelRecord, getLastCleanupResult, fetchAdminRidesDetailed } from '../services/roadToWaoDb';
 
 function fmtDate(iso) {
   if (!iso) return '';
@@ -29,6 +29,19 @@ export default function AdminPanel({
   const [showTestData, setShowTestData] = useState(false);
   const [showCleanupPreview, setShowCleanupPreview] = useState(false);
 
+  const [detailedRides, setDetailedRides] = useState([]);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+
+  useEffect(() => {
+    if (isAdmin) {
+      setLoadingDetails(true);
+      fetchAdminRidesDetailed().then(({ data }) => {
+        setDetailedRides(data || []);
+        setLoadingDetails(false);
+      });
+    }
+  }, [isAdmin, rides]);
+
   const testRides = rides.filter(isTestVercelRecord);
   const testJoins = joinRequests.filter(isTestVercelRecord);
   const testGenerals = generalRequests.filter(isTestVercelRecord);
@@ -52,7 +65,8 @@ export default function AdminPanel({
     setExpandedRides((prev) => ({ ...prev, [id]: !prev[id] }));
 
   // Filter input arrays based on test toggle
-  const filteredRides = showTestData ? rides : rides.filter(r => !isTestVercelRecord(r));
+  const displayRides = detailedRides.length > 0 ? detailedRides : rides;
+  const filteredRides = showTestData ? displayRides : displayRides.filter(r => !isTestVercelRecord(r));
   const filteredJoinRequests = showTestData ? joinRequests : joinRequests.filter(jr => !isTestVercelRecord(jr));
   const filteredGeneralRequests = showTestData ? generalRequests : generalRequests.filter(gr => !isTestVercelRecord(gr));
   const filteredRequests = showTestData ? requests : requests.filter(r => !isTestVercelRecord(r));
@@ -324,6 +338,53 @@ export default function AdminPanel({
                     {/* Expandable join request list */}
                     {isOpen && (
                       <div className="cr-join-list">
+                        {/* Admin details block */}
+                        <div className="cr-admin-details" style={{
+                          padding: '12px 14px',
+                          borderBottom: '1px solid rgba(255,255,255,0.06)',
+                          background: 'rgba(255, 255, 255, 0.02)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '8px',
+                          marginBottom: '10px'
+                        }}>
+                          <label style={{ fontSize: '11px', color: 'var(--turquoise)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Dettagli di Amministrazione
+                          </label>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px', fontSize: '12.5px', color: 'var(--text-soft)' }}>
+                            <div><strong>Area partenza / tappe possibili:</strong> {ride.departure_area || ride.stops || '—'}</div>
+                            <div><strong>Data ritorno:</strong> {ride.return_date ? fmtDate(ride.return_date) : 'Non indicato'}</div>
+                            <div><strong>Stato:</strong> <span style={{ color: 'var(--amber-gold)' }}>{ride.status}</span></div>
+                            <div><strong>Visibilità:</strong> {ride.visibility || 'public'}</div>
+                            <div><strong>Telegram Driver:</strong> {(() => {
+                              const val = ride.telegram_username;
+                              const isValid = val && typeof val === 'string' && val.trim() !== '' && val.trim() !== '-';
+                              return isValid ? val : <span style={{ color: 'var(--solar-orange)', fontWeight: '500' }}>Contatto Telegram mancante</span>;
+                            })()}</div>
+                            <div><strong>Instagram Driver:</strong> {(() => {
+                              const val = ride.instagram_username;
+                              const isValid = val && typeof val === 'string' && val.trim() !== '' && val.trim() !== '-';
+                              return isValid ? val : 'Non indicato';
+                            })()}</div>
+                          </div>
+                          {(() => {
+                            const tgVal = ride.telegram_username;
+                            const igVal = ride.instagram_username;
+                            const isTgValid = tgVal && typeof tgVal === 'string' && tgVal.trim() !== '' && tgVal.trim() !== '-';
+                            const isIgValid = igVal && typeof igVal === 'string' && igVal.trim() !== '' && igVal.trim() !== '-';
+                            if (!isTgValid && !isIgValid) {
+                              return (
+                                <div className="contact-warning-msg" style={{ color: 'var(--solar-orange)', fontWeight: 'bold', fontSize: '11.5px', marginTop: '4px' }}>
+                                  ⚠️ Contatto non valido: serve Telegram o Instagram prima di creare match.
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
+                          <div style={{ fontSize: '12.5px', color: 'var(--text-soft)', marginTop: '4px' }}>
+                            <strong>Note:</strong> {ride.notes || 'Non indicato'}
+                          </div>
+                        </div>
                         <div className="cr-telegram-link-section" style={{
                           padding: '10px 14px',
                           borderBottom: '1px solid rgba(255,255,255,0.06)',
