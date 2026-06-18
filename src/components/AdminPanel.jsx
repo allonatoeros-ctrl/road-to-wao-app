@@ -10,6 +10,32 @@ function fmtDate(iso) {
   }
 }
 
+function splitStops(departureArea) {
+  if (!departureArea) return '';
+  const stops = departureArea.split(/[,;|/]+/).map(s => s.trim()).filter(Boolean);
+  return stops.join(' · ');
+}
+
+function buildRouteLabel(ride) {
+  const start = ride.departureCity || ride.departure_city || '';
+  const dest = ride.destination || ride.to_event || 'WAO Festival';
+  const depArea = ride.stops || ride.departure_area || '';
+  const stops = depArea ? depArea.split(/[,;|/]+/).map(s => s.trim()).filter(Boolean) : [];
+  
+  const parts = [start, ...stops, dest].filter(Boolean);
+  return parts.join(' → ');
+}
+
+function parseLuggage(notes) {
+  if (!notes) return 'Non indicato';
+  const parts = notes.split('|').map(p => p.trim());
+  const found = parts.filter(p => /bagagl|luggage/i.test(p));
+  if (found.length > 0) {
+    return found.map(p => p.replace(/^(spazio bagagli|dettagli bagagli|bagagli|luggage|space luggage):\s*/i, '')).join(' · ');
+  }
+  return notes;
+}
+
 export default function AdminPanel({
   rides = [],
   joinRequests = [],
@@ -351,38 +377,111 @@ export default function AdminPanel({
                           <label style={{ fontSize: '11px', color: 'var(--turquoise)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                             Dettagli di Amministrazione
                           </label>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px', fontSize: '12.5px', color: 'var(--text-soft)' }}>
-                            <div><strong>Area partenza / tappe possibili:</strong> {ride.departure_area || ride.stops || '—'}</div>
-                            <div><strong>Data ritorno:</strong> {ride.return_date ? fmtDate(ride.return_date) : 'Non indicato'}</div>
-                            <div><strong>Stato:</strong> <span style={{ color: 'var(--amber-gold)' }}>{ride.status}</span></div>
-                            <div><strong>Visibilità:</strong> {ride.visibility || 'public'}</div>
-                            <div><strong>Telegram Driver:</strong> {(() => {
-                              const val = ride.telegram_username;
-                              const isValid = val && typeof val === 'string' && val.trim() !== '' && val.trim() !== '-';
-                              return isValid ? val : <span style={{ color: 'var(--solar-orange)', fontWeight: '500' }}>Contatto Telegram mancante</span>;
-                            })()}</div>
-                            <div><strong>Instagram Driver:</strong> {(() => {
-                              const val = ride.instagram_username;
-                              const isValid = val && typeof val === 'string' && val.trim() !== '' && val.trim() !== '-';
-                              return isValid ? val : 'Non indicato';
-                            })()}</div>
-                          </div>
-                          {(() => {
-                            const tgVal = ride.telegram_username;
-                            const igVal = ride.instagram_username;
-                            const isTgValid = tgVal && typeof tgVal === 'string' && tgVal.trim() !== '' && tgVal.trim() !== '-';
-                            const isIgValid = igVal && typeof igVal === 'string' && igVal.trim() !== '' && igVal.trim() !== '-';
-                            if (!isTgValid && !isIgValid) {
-                              return (
-                                <div className="contact-warning-msg" style={{ color: 'var(--solar-orange)', fontWeight: 'bold', fontSize: '11.5px', marginTop: '4px' }}>
-                                  ⚠️ Contatto non valido: serve Telegram o Instagram prima di creare match.
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px', color: 'var(--text-soft)' }}>
+                            {/* Percorso */}
+                            <div>
+                              <div style={{ fontWeight: '700', color: 'var(--turquoise)', fontSize: '11px', textTransform: 'uppercase', marginBottom: '4px' }}>Percorso</div>
+                              <div style={{ color: 'var(--text-main)', fontSize: '14px', fontWeight: '500' }}>
+                                {buildRouteLabel(ride)}
+                              </div>
+                            </div>
+
+                            {/* Tappe possibili */}
+                            {(ride.departure_area || ride.stops) && (
+                              <div>
+                                <div style={{ fontWeight: '700', color: 'var(--turquoise)', fontSize: '11px', textTransform: 'uppercase', marginBottom: '4px' }}>Tappe possibili</div>
+                                <div style={{ color: 'var(--text-soft)' }}>
+                                  {splitStops(ride.departure_area || ride.stops)}
                                 </div>
-                              );
-                            }
-                            return null;
-                          })()}
-                          <div style={{ fontSize: '12.5px', color: 'var(--text-soft)', marginTop: '4px' }}>
-                            <strong>Note:</strong> {ride.notes || 'Non indicato'}
+                              </div>
+                            )}
+
+                            {/* Dettagli viaggio */}
+                            <div>
+                              <div style={{ fontWeight: '700', color: 'var(--turquoise)', fontSize: '11px', textTransform: 'uppercase', marginBottom: '4px' }}>Dettagli viaggio</div>
+                              <ul style={{ margin: 0, paddingLeft: '20px', listStyleType: 'disc', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <li><strong>Partenza:</strong> {(() => {
+                                  const dateStr = ride.departureDate || ride.departure_date;
+                                  let formattedDate = dateStr;
+                                  if (dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                                    try {
+                                      const d = new Date(dateStr);
+                                      formattedDate = d.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' });
+                                    } catch {}
+                                  }
+                                  const timeLabel = ride.travelTime || ride.departure_time_label;
+                                  return timeLabel ? `${formattedDate} · ${timeLabel}` : formattedDate;
+                                })()}</li>
+                                <li><strong>Ritorno:</strong> {ride.return_date || ride.returnDate ? (() => {
+                                  const rDate = ride.return_date || ride.returnDate;
+                                  if (/^\d{4}-\d{2}-\d{2}$/.test(rDate)) {
+                                    try {
+                                      const d = new Date(rDate);
+                                      return d.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' });
+                                    } catch {}
+                                  }
+                                  return rDate;
+                                })() : 'Non indicato'}</li>
+                                <li><strong>Posti:</strong> {ride.seatsAvailable ?? ride.seats_available} disponibili su {ride.seatsTotal ?? ride.seats_total}</li>
+                                <li><strong>Bagagli:</strong> {parseLuggage(ride.notes || ride.luggageDetails)}</li>
+                                {(() => {
+                                  const notes = ride.notes || ride.luggageDetails || '';
+                                  if (notes.toLowerCase().includes('1/2 giorni prima') || notes.toLowerCase().includes('1/2 days earlier')) {
+                                    return <li><strong>Flessibilità:</strong> Possibile partenza 1/2 giorni prima</li>;
+                                  }
+                                  return null;
+                                })()}
+                              </ul>
+                            </div>
+
+                            {/* Driver Contacts (Preserve driver info for admin) */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '10px' }}>
+                              <div><strong>Telegram Driver:</strong> {(() => {
+                                const val = ride.telegram_username;
+                                const isValid = val && typeof val === 'string' && val.trim() !== '' && val.trim() !== '-';
+                                return isValid ? val : <span style={{ color: 'var(--solar-orange)', fontWeight: '500' }}>Contatto Telegram mancante</span>;
+                              })()}</div>
+                              <div><strong>Instagram Driver:</strong> {(() => {
+                                const val = ride.instagram_username;
+                                const isValid = val && typeof val === 'string' && val.trim() !== '' && val.trim() !== '-';
+                                return isValid ? val : 'Non indicato';
+                              })()}</div>
+                              <div><strong>Stato:</strong> <span style={{ color: 'var(--amber-gold)' }}>{ride.status}</span></div>
+                              <div><strong>Visibilità:</strong> {ride.visibility || 'public'}</div>
+                            </div>
+
+                            {/* Contact Warning */}
+                            {(() => {
+                              const tgVal = ride.telegram_username;
+                              const igVal = ride.instagram_username;
+                              const isTgValid = tgVal && typeof tgVal === 'string' && tgVal.trim() !== '' && tgVal.trim() !== '-';
+                              const isIgValid = igVal && typeof igVal === 'string' && igVal.trim() !== '' && igVal.trim() !== '-';
+                              if (!isTgValid && !isIgValid) {
+                                return (
+                                  <div className="contact-warning-msg" style={{ color: 'var(--solar-orange)', fontWeight: 'bold', fontSize: '11.5px', marginTop: '4px' }}>
+                                    ⚠️ Contatto non valido: serve Telegram o Instagram prima di creare match.
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
+
+                            {/* Nota driver */}
+                            <div style={{ marginTop: '4px' }}>
+                              <div style={{ fontWeight: '700', color: 'var(--turquoise)', fontSize: '11px', textTransform: 'uppercase', marginBottom: '6px' }}>Nota driver</div>
+                              <div style={{
+                                background: 'rgba(0, 0, 0, 0.25)',
+                                border: '1px solid rgba(255, 255, 255, 0.08)',
+                                borderRadius: '8px',
+                                padding: '10px 12px',
+                                color: 'var(--text-soft)',
+                                fontSize: '12.5px',
+                                lineHeight: '1.4',
+                                whiteSpace: 'pre-wrap'
+                              }}>
+                                {ride.notes || ride.luggageDetails || 'Nessuna nota aggiuntiva'}
+                              </div>
+                            </div>
                           </div>
                         </div>
                         <div className="cr-telegram-link-section" style={{

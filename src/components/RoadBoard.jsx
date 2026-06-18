@@ -1,3 +1,35 @@
+function splitStops(departureArea) {
+  if (!departureArea) return '';
+  const stops = departureArea.split(/[,;|/]+/).map(s => s.trim()).filter(Boolean);
+  return stops.join(' · ');
+}
+
+function getPublicNotesPreview(notes) {
+  if (!notes) return '';
+  // Remove Telegram handles and potential private details
+  let clean = notes;
+  clean = clean.replace(/@[a-zA-Z0-9_]+/g, '').trim();
+  clean = clean.replace(/\+?\d[\d\s\-]{7,}\d/g, '').trim();
+  clean = clean.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '').trim();
+  
+  // Remove empty pipes or double spaces that might result from removal
+  clean = clean.replace(/\|\s*\|/g, '|').replace(/\s+/g, ' ').trim();
+  
+  const cleanLower = clean.toLowerCase();
+  if (cleanLower.includes('telegram') || cleanLower.includes('instagram') || cleanLower.includes('contatt') || cleanLower.includes('tel:')) {
+    return 'Info viaggio disponibili';
+  }
+  
+  if (!clean || clean === '|' || clean === '||') {
+    return 'Info viaggio disponibili';
+  }
+  
+  if (clean.length > 80) {
+    return clean.substring(0, 77) + '...';
+  }
+  return clean;
+}
+
 export default function RoadBoard({ rides, onJoinRide, onGeneralRequest, onOfferRide }) {
   return (
     <div className="board-content">
@@ -78,6 +110,22 @@ export default function RoadBoard({ rides, onJoinRide, onGeneralRequest, onOffer
                   </svg>
                   <span className="detail-text">Driver: {ride.driver}</span>
                 </div>
+
+                {ride.stops && (
+                  <div className="ride-detail-item stops-info" style={{ marginTop: '6px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: '6px' }}>
+                    <span className="detail-text" style={{ color: 'var(--turquoise)', fontWeight: '500' }}>
+                      Passa da: {splitStops(ride.stops)}
+                    </span>
+                  </div>
+                )}
+
+                {ride.luggageDetails && (
+                  <div className="ride-detail-item notes-preview" style={ride.stops ? { marginTop: '4px' } : { marginTop: '6px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: '6px' }}>
+                    <span className="detail-text" style={{ fontStyle: 'italic', fontSize: '12px', color: 'var(--text-soft)' }}>
+                      📝 {getPublicNotesPreview(ride.luggageDetails)}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* CTA per unirsi */}
