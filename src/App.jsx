@@ -95,6 +95,27 @@ function isUuid(id) {
   return uuidRegex.test(id);
 }
 
+export function isUsableContact(value) {
+  if (value === null || value === undefined) return false;
+  const clean = String(value).trim();
+  if (clean === '') return false;
+  const lower = clean.toLowerCase();
+  if (
+    lower === '-' ||
+    lower === '@' ||
+    lower === 'null' ||
+    lower === 'undefined'
+  ) {
+    return false;
+  }
+  return true;
+}
+
+export function hasUsableContact(profile) {
+  if (!profile) return false;
+  return isUsableContact(profile.telegram_username) || isUsableContact(profile.instagram_username);
+}
+
 function App() {
   const [currentTab, setCurrentTab] = useState('casa');
   const [joinRequests, setJoinRequests] = useState([]);
@@ -201,14 +222,16 @@ function App() {
     getCurrentProfile().then(({ data }) => {
       if (active) {
         setIsAdmin(!!data?.is_admin);
-        if (data?.nickname) {
+        if (data) {
           setUserProfile(prev => ({
             ...prev,
-            nickname: data.nickname,
+            nickname: data.nickname || prev.nickname || '',
             departureCity: data.departure_city || prev.departureCity || '',
             vibe: data.role || prev.vibe || '',
             badge: data.role || prev.badge || 'user',
-            status: data.is_of_age ? 'Maggiorenne' : prev.status
+            status: data.is_of_age ? 'Maggiorenne' : prev.status,
+            telegram_username: data.telegram_username || null,
+            instagram_username: data.instagram_username || null
           }));
         }
       }
@@ -648,14 +671,20 @@ function App() {
             departureCity: parsed.departureCity || DEFAULT_PROFILE.departureCity,
             vibe: parsed.vibe || DEFAULT_PROFILE.vibe,
             badge: parsed.badge || DEFAULT_PROFILE.badge,
-            status: parsed.status || DEFAULT_PROFILE.status
+            status: parsed.status || DEFAULT_PROFILE.status,
+            telegram_username: parsed.telegram_username || null,
+            instagram_username: parsed.instagram_username || null
           };
         }
       } catch (e) {
         console.error('Error parsing profile from localStorage', e);
       }
     }
-    return DEFAULT_PROFILE;
+    return {
+      ...DEFAULT_PROFILE,
+      telegram_username: null,
+      instagram_username: null
+    };
   });
 
   const handleUpdateProfile = (updated) => {
@@ -671,6 +700,11 @@ function App() {
 
   const openJoinForRide = (ride) => {
     requireAuthForAction('join_ride', () => {
+      if (!hasUsableContact(userProfile)) {
+        setCurrentTab('profilo');
+        setAuthBannerMessage('Per offrire o chiedere un passaggio devi inserire almeno un contatto valido: Telegram o Instagram.');
+        return;
+      }
       setSelectedRideForJoin(ride);
       setJoinModalMode('ride');
     });
@@ -678,6 +712,11 @@ function App() {
 
   const openGeneralRequest = () => {
     requireAuthForAction('general_request', () => {
+      if (!hasUsableContact(userProfile)) {
+        setCurrentTab('profilo');
+        setAuthBannerMessage('Per offrire o chiedere un passaggio devi inserire almeno un contatto valido: Telegram o Instagram.');
+        return;
+      }
       setSelectedRideForJoin(null);
       setJoinModalMode('general');
     });
@@ -685,6 +724,11 @@ function App() {
 
   const handleOpenOfferModal = () => {
     requireAuthForAction('offer_ride', () => {
+      if (!hasUsableContact(userProfile)) {
+        setCurrentTab('profilo');
+        setAuthBannerMessage('Per offrire o chiedere un passaggio devi inserire almeno un contatto valido: Telegram o Instagram.');
+        return;
+      }
       setShowOfferModal(true);
     });
   };
@@ -695,6 +739,12 @@ function App() {
   };
 
   const handleSubmitJoinRequest = async (formData) => {
+    if (!hasUsableContact(userProfile)) {
+      setCurrentTab('profilo');
+      setAuthBannerMessage('Per offrire o chiedere un passaggio devi inserire almeno un contatto valido: Telegram o Instagram.');
+      throw new Error('Per offrire o chiedere un passaggio devi inserire almeno un contatto valido: Telegram o Instagram.');
+    }
+
     const newId = `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const createdAt = new Date().toISOString();
 
@@ -1370,6 +1420,11 @@ function App() {
             userProfile={userProfile}
             onClose={() => setShowOfferModal(false)}
             onSubmitOffer={async (newOffer) => {
+              if (!hasUsableContact(userProfile)) {
+                setCurrentTab('profilo');
+                setAuthBannerMessage('Per offrire o chiedere un passaggio devi inserire almeno un contatto valido: Telegram o Instagram.');
+                return;
+              }
               try {
                 const { data: userData, error: userError } = await getCurrentUser();
                 const user = userData?.user;

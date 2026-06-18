@@ -18,6 +18,30 @@ function getEntryKey(entry, index) {
   return `${entry?.type || 'req'}-${entry?.route || ''}-${entry?.nickname || ''}-${index}`;
 }
 
+function isUsableContact(value) {
+  if (value === null || value === undefined) return false;
+  const clean = String(value).trim();
+  if (clean === '') return false;
+  const lower = clean.toLowerCase();
+  if (
+    lower === '-' ||
+    lower === '@' ||
+    lower === 'null' ||
+    lower === 'undefined'
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function hasUsableContact(profile) {
+  if (!profile) return false;
+  // Handle both database naming (telegram_username) and local profile naming
+  const tg = profile.telegram_username !== undefined ? profile.telegram_username : profile.telegramUsername;
+  const ig = profile.instagram_username !== undefined ? profile.instagram_username : profile.instagramUsername;
+  return isUsableContact(tg) || isUsableContact(ig);
+}
+
 export default function ProfilePanel({ 
   requests = [], 
   rides = [], 
@@ -386,7 +410,9 @@ export default function ProfilePanel({
           vibe: data.role || '',
           badge: data.role || 'user',
           status: data.is_of_age ? 'Maggiorenne' : 'Minorenne',
-          is_admin: data.is_admin
+          is_admin: data.is_admin,
+          telegram_username: data.telegram_username || null,
+          instagram_username: data.instagram_username || null
         });
       }
       setMessage({ type: 'success', text: 'Profilo salvato con successo!' });
@@ -958,6 +984,25 @@ export default function ProfilePanel({
               />
             </div>
 
+            {!hasUsableContact(profileForm) && (
+              <div className="contact-warning" style={{
+                color: 'var(--amber-gold)',
+                background: 'rgba(255, 197, 71, 0.1)',
+                border: '1px solid rgba(255, 197, 71, 0.25)',
+                borderRadius: '8px',
+                padding: '8px 12px',
+                fontSize: '11px',
+                lineHeight: '1.4',
+                marginTop: '4px',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '6px'
+              }}>
+                <span style={{ fontSize: '14px' }}>⚠️</span>
+                <span>Aggiungi Telegram o Instagram: serve per creare match e permettere all’admin di contattarti.</span>
+              </div>
+            )}
+
             {message.text && (
               <div style={{
                 padding: '8px 12px',
@@ -1053,6 +1098,25 @@ export default function ProfilePanel({
                 </div>
               )}
             </div>
+
+            {!hasUsableContact(profile) && (
+              <div className="contact-warning" style={{
+                color: 'var(--amber-gold)',
+                background: 'rgba(255, 197, 71, 0.1)',
+                border: '1px solid rgba(255, 197, 71, 0.25)',
+                borderRadius: '8px',
+                padding: '8px 12px',
+                fontSize: '11px',
+                lineHeight: '1.4',
+                marginTop: '8px',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '6px'
+              }}>
+                <span style={{ fontSize: '14px' }}>⚠️</span>
+                <span>Aggiungi Telegram o Instagram: serve per creare match e permettere all’admin di contattarti.</span>
+              </div>
+            )}
 
             {message.text && (
               <div style={{
