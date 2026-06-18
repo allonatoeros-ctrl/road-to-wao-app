@@ -1,12 +1,13 @@
+import React, { useState } from 'react';
+
 function splitStops(departureArea) {
   if (!departureArea) return '';
   const stops = departureArea.split(/[,;|/]+/).map(s => s.trim()).filter(Boolean);
   return stops.join(' · ');
 }
 
-function getPublicNotesPreview(notes) {
+function sanitizeNotes(notes) {
   if (!notes) return '';
-  // Remove Telegram handles and potential private details
   let clean = notes;
   clean = clean.replace(/@[a-zA-Z0-9_]+/g, '').trim();
   clean = clean.replace(/\+?\d[\d\s\-]{7,}\d/g, '').trim();
@@ -14,6 +15,9 @@ function getPublicNotesPreview(notes) {
   
   // Remove empty pipes or double spaces that might result from removal
   clean = clean.replace(/\|\s*\|/g, '|').replace(/\s+/g, ' ').trim();
+  
+  // Clean leading/trailing pipes and spaces
+  clean = clean.replace(/^(\s*\|\s*)+|(\s*\|\s*)+$/g, '').trim();
   
   const cleanLower = clean.toLowerCase();
   if (cleanLower.includes('telegram') || cleanLower.includes('instagram') || cleanLower.includes('contatt') || cleanLower.includes('tel:')) {
@@ -24,13 +28,18 @@ function getPublicNotesPreview(notes) {
     return 'Info viaggio disponibili';
   }
   
-  if (clean.length > 80) {
-    return clean.substring(0, 77) + '...';
-  }
   return clean;
 }
 
 export default function RoadBoard({ rides, onJoinRide, onGeneralRequest, onOfferRide }) {
+  const [expandedRides, setExpandedRides] = useState({});
+
+  const toggleExpand = (rideId) => {
+    setExpandedRides(prev => ({
+      ...prev,
+      [rideId]: !prev[rideId]
+    }));
+  };
   return (
     <div className="board-content">
       {/* Header della bacheca */}
@@ -62,6 +71,8 @@ export default function RoadBoard({ rides, onJoinRide, onGeneralRequest, onOffer
           const badgeClass = isFull ? 'badge-warning' : 'badge-open';
           const statusText = isFull ? 'Completo' : 'Passaggio aperto';
           const spotsText = isFull ? '0 posti liberi' : `${ride.seatsAvailable} posti liberi`;
+          const stopsSource = ride.departure_area || ride.stops;
+          const isExpanded = !!expandedRides[ride.id];
 
           return (
             <div key={ride.id} className={`ride-card ${cardClass}`}>
@@ -111,19 +122,110 @@ export default function RoadBoard({ rides, onJoinRide, onGeneralRequest, onOffer
                   <span className="detail-text">Driver: {ride.driver}</span>
                 </div>
 
-                {ride.stops && (
+                {stopsSource && (
                   <div className="ride-detail-item stops-info" style={{ marginTop: '6px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: '6px' }}>
                     <span className="detail-text" style={{ color: 'var(--turquoise)', fontWeight: '500' }}>
-                      Passa da: {splitStops(ride.stops)}
+                      Passa da: {splitStops(stopsSource)}
                     </span>
                   </div>
                 )}
 
                 {ride.luggageDetails && (
-                  <div className="ride-detail-item notes-preview" style={ride.stops ? { marginTop: '4px' } : { marginTop: '6px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: '6px' }}>
-                    <span className="detail-text" style={{ fontStyle: 'italic', fontSize: '12px', color: 'var(--text-soft)' }}>
-                      📝 {getPublicNotesPreview(ride.luggageDetails)}
-                    </span>
+                  <div className="ride-detail-item notes-preview" style={{
+                    marginTop: stopsSource ? '8px' : '10px',
+                    borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+                    paddingTop: '8px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px',
+                    width: '100%'
+                  }}>
+                    {/* Header of Info Driver */}
+                    <div style={{
+                      fontSize: '11px',
+                      fontWeight: 'bold',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      color: 'var(--amber-gold)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                      <span>ℹ️</span> Info driver
+                    </div>
+
+                    {/* Signals and Previews Container */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {/* Extracted Signals */}
+                      {ride.luggageDetails.toLowerCase().includes('1/2 giorni prima') && (
+                        <div className="driver-signal" style={{ fontSize: '12.5px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          🕒 Flessibile: può partire anche 1/2 giorni prima
+                        </div>
+                      )}
+                      {ride.luggageDetails.toLowerCase().includes('spazio bagagli: medio') && (
+                        <div className="driver-signal" style={{ fontSize: '12.5px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          🎒 Bagagli: spazio medio
+                        </div>
+                      )}
+                      {ride.luggageDetails.toLowerCase().includes('500') && (
+                        <div className="driver-signal" style={{ fontSize: '12.5px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          🚗 Auto piccola: Fiat 500
+                        </div>
+                      )}
+
+                      {/* Human note preview for tappe */}
+                      {ride.luggageDetails.toLowerCase().includes('tappe') && (
+                        <div className="driver-signal" style={{ fontSize: '12.5px', color: 'var(--text-soft)', fontStyle: 'italic' }}>
+                          Disponibile a fare tappe prima di arrivare.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Collapsible full note */}
+                    <div 
+                      className="full-note-content"
+                      style={{ 
+                        marginTop: '2px', 
+                        fontSize: '12.5px', 
+                        color: 'var(--text-soft)', 
+                        lineHeight: '1.4', 
+                        background: 'rgba(255, 255, 255, 0.03)',
+                        padding: isExpanded ? '8px 10px' : '0',
+                        borderRadius: '6px',
+                        borderLeft: isExpanded ? '2px solid var(--turquoise)' : 'none',
+                        display: isExpanded ? 'block' : 'none', // Keep in DOM for Playwright textContent check
+                        transition: 'all 0.2s ease-in-out'
+                      }}
+                    >
+                      {sanitizeNotes(ride.luggageDetails)}
+                    </div>
+
+                    {/* Toggle control */}
+                    <button 
+                      type="button" 
+                      className="toggle-note-btn"
+                      onClick={() => toggleExpand(ride.id)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--turquoise)',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        padding: '0',
+                        textAlign: 'left',
+                        textDecoration: 'underline',
+                        alignSelf: 'flex-start',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        transition: 'color 0.2s ease'
+                      }}
+                      onMouseOver={(e) => { e.target.style.color = '#fff'; }}
+                      onMouseOut={(e) => { e.target.style.color = 'var(--turquoise)'; }}
+                    >
+                      {isExpanded ? 'Nascondi nota' : 'Leggi nota completa'}
+                    </button>
                   </div>
                 )}
               </div>
