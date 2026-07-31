@@ -762,8 +762,19 @@ export default function AdminPanel({
                                         <span style={{ fontSize: '9.5px', fontWeight: '800', color: '#0b0c1e', background: 'var(--turquoise)', borderRadius: '4px', padding: '2px 6px', letterSpacing: '0.03em' }}>PARTECIPANTE</span>
                                         <strong style={{ color: 'var(--text-main)' }}>{p.nickname}</strong>
                                         {p.approvedAt && <span style={{ color: 'var(--text-soft)', fontSize: '11px' }}>approvato il {fmtDate(p.approvedAt)}</span>}
+                                        <span style={{
+                                          fontSize: '9.5px',
+                                          fontWeight: '800',
+                                          color: '#0b0c1e',
+                                          background: 'var(--turquoise)',
+                                          borderRadius: '4px',
+                                          padding: '1px 6px',
+                                          letterSpacing: '0.03em'
+                                        }}>
+                                          APPROVATO
+                                        </span>
                                         {!hasTelegram(p.telegram_username) && (
-                                          <span style={{ fontSize: '9.5px', fontWeight: '800', color: 'var(--solar-orange)', border: '1px solid var(--solar-orange)', borderRadius: '4px', padding: '1px 6px' }}>CONTATTO MANCANTE</span>
+                                          <span style={{ fontSize: '9.5px', fontWeight: '800', color: 'var(--solar-orange)', border: '1px solid var(--solar-orange)', borderRadius: '4px', padding: '1px 6px' }}>TELEGRAM MANCANTE</span>
                                         )}
                                       </div>
                                       <div style={{ fontSize: '12px', color: 'var(--text-soft)', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
@@ -778,7 +789,7 @@ export default function AdminPanel({
                                             onClick={() => copyToClipboard(buildContactRequestMessage(p.nickname, ride.departureCity || ride.departure_city || ''))}
                                             style={{ background: 'transparent', border: '1px solid var(--turquoise)', color: 'var(--turquoise)', borderRadius: '6px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer' }}
                                           >
-                                            Copia messaggio di contatto
+                                            Copia messaggio Telegram
                                           </button>
                                         )}
                                       </div>
