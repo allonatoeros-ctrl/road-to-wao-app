@@ -47,6 +47,19 @@ create table public.profile_secrets (
   updated_at timestamptz not null default now()
 );
 
+-- TABLE: profile_private_contacts
+-- Private admin-recovery email, isolated from profile_secrets on purpose: the
+-- "connected users" policy on profile_secrets shares Telegram/Instagram between
+-- driver and approved passengers, and column-level RLS does not exist in Postgres.
+-- Splitting email into its own table keeps it visible to the owner and admins only.
+-- See supabase/migrations/002_add_profile_private_contacts.sql for the policies.
+create table public.profile_private_contacts (
+  id uuid primary key references public.profiles(id) on delete cascade,
+  contact_email text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 -- TABLE: rides
 -- Offered rides that appear in the Road Board.
 create table public.rides (
@@ -142,6 +155,10 @@ create trigger set_profiles_updated_at
 
 create trigger set_profile_secrets_updated_at
   before update on public.profile_secrets
+  for each row execute function public.handle_updated_at();
+
+create trigger set_profile_private_contacts_updated_at
+  before update on public.profile_private_contacts
   for each row execute function public.handle_updated_at();
 
 create trigger set_rides_updated_at
@@ -316,6 +333,7 @@ create trigger enforce_ride_seats_consistency
 -- Enable Row Level Security on all tables
 alter table public.profiles enable row level security;
 alter table public.profile_secrets enable row level security;
+alter table public.profile_private_contacts enable row level security;
 alter table public.rides enable row level security;
 alter table public.ride_secrets enable row level security;
 alter table public.join_requests enable row level security;
@@ -399,6 +417,35 @@ create policy "Allow users to insert their own profile secrets"
 
 create policy "Allow users to update their own profile secrets"
   on public.profile_secrets
+  for update
+  to authenticated
+  using (auth.uid() = id)
+  with check (auth.uid() = id);
+
+-- ------------------------------------------
+-- PROFILE PRIVATE CONTACTS POLICIES (owner + admin only, no connected-user sharing)
+-- ------------------------------------------
+
+create policy "Allow users to read their own private contact"
+  on public.profile_private_contacts
+  for select
+  to authenticated
+  using (auth.uid() = id);
+
+create policy "Allow admins to read all private contacts"
+  on public.profile_private_contacts
+  for select
+  to authenticated
+  using (public.is_admin(auth.uid()));
+
+create policy "Allow users to insert their own private contact"
+  on public.profile_private_contacts
+  for insert
+  to authenticated
+  with check (auth.uid() = id);
+
+create policy "Allow users to update their own private contact"
+  on public.profile_private_contacts
   for update
   to authenticated
   using (auth.uid() = id)

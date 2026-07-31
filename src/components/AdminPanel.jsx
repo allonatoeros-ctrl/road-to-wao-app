@@ -97,10 +97,64 @@ function buildContactRequestMessage(nickname, city) {
   return `Ciao ${nickname}!\nCi sono persone approvate per la tua ride da ${city}. Per creare il gruppo ci manca il tuo username Telegram. Puoi mandarci il tuo contatto, per esempio @nomeutente?`;
 }
 
+function hasEmail(val) {
+  return !!(val && typeof val === 'string' && val.trim() !== '');
+}
+
+function buildTelegramRequestEmailBody(nickname, city, isParticipant) {
+  const rideRef = isParticipant ? 'la ride a cui hai chiesto di unirti' : 'la tua ride';
+  const cityLine = city ? ` da ${city}` : '';
+  return `Ciao ${nickname}!\n\nCi sono persone approvate per ${rideRef}${isParticipant ? '' : cityLine}.\n\nPer creare il gruppo ci manca soltanto il tuo username Telegram. Puoi rispondere a questa email scrivendoci il tuo contatto, per esempio @nomeutente.\n\nAppena ce lo mandi, creiamo il gruppo con gli altri partecipanti.\n\nA presto,\nTeam Two How`;
+}
+
+const TELEGRAM_REQUEST_SUBJECT = 'Ti stanno aspettando su Two How 🚗';
+
+function mailtoUrl(email, subject, body) {
+  const params = new URLSearchParams({ subject, body });
+  return `mailto:${encodeURIComponent(email.trim())}?${params.toString()}`;
+}
+
 function copyToClipboard(text) {
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).catch(() => {});
   }
+}
+
+function EmailActions({ email, nickname, city, isParticipant, prominent }) {
+  if (!hasEmail(email)) return null;
+  const cleanEmail = email.trim();
+  const telegramRequestBody = buildTelegramRequestEmailBody(nickname, city, isParticipant);
+  const btnStyle = {
+    background: 'transparent',
+    border: `1px solid ${prominent ? 'var(--solar-orange)' : 'var(--turquoise)'}`,
+    color: prominent ? 'var(--solar-orange)' : 'var(--turquoise)',
+    borderRadius: '6px',
+    padding: '2px 8px',
+    fontSize: '11px',
+    cursor: 'pointer',
+    textDecoration: 'none',
+    display: 'inline-block'
+  };
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+      <span style={{ fontSize: prominent ? '12px' : '11.5px', color: prominent ? 'var(--text-main)' : 'var(--text-soft)', fontWeight: prominent ? '700' : '400' }}>
+        {prominent ? `Email: ${cleanEmail}` : `Email: ${cleanEmail}`}
+      </span>
+      <button type="button" onClick={() => copyToClipboard(cleanEmail)} style={btnStyle}>
+        COPIA EMAIL
+      </button>
+      <a href={mailtoUrl(cleanEmail, TELEGRAM_REQUEST_SUBJECT, telegramRequestBody)} style={btnStyle}>
+        SCRIVI EMAIL
+      </a>
+      <button
+        type="button"
+        onClick={() => copyToClipboard(`Oggetto: ${TELEGRAM_REQUEST_SUBJECT}\n\n${telegramRequestBody}`)}
+        style={btnStyle}
+      >
+        COPIA MAIL PER TELEGRAM
+      </button>
+    </div>
+  );
 }
 
 export default function AdminPanel({
@@ -123,14 +177,13 @@ export default function AdminPanel({
   const [showCleanupPreview, setShowCleanupPreview] = useState(false);
 
   const [detailedRides, setDetailedRides] = useState([]);
-  const [loadingDetails, setLoadingDetails] = useState(false);
 
   useEffect(() => {
     if (isAdmin) {
-      setLoadingDetails(true);
       fetchAdminRidesDetailed().then(({ data }) => {
         setDetailedRides(data || []);
-        setLoadingDetails(false);
+      }).catch(() => {
+        // Keep the Control Room usable with the already-loaded admin data.
       });
     }
   }, [isAdmin, rides]);
@@ -479,7 +532,9 @@ export default function AdminPanel({
                                     try {
                                       const d = new Date(dateStr);
                                       formattedDate = d.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' });
-                                    } catch {}
+                                    } catch {
+                                      // Keep the raw date if browser formatting fails.
+                                    }
                                   }
                                   const timeLabel = ride.travelTime || ride.departure_time_label;
                                   return timeLabel ? `${formattedDate} · ${timeLabel}` : formattedDate;
@@ -490,7 +545,9 @@ export default function AdminPanel({
                                     try {
                                       const d = new Date(rDate);
                                       return d.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' });
-                                    } catch {}
+                                    } catch {
+                                      // Keep the raw date if browser formatting fails.
+                                    }
                                   }
                                   return rDate;
                                 })() : 'Non indicato'}</li>
@@ -593,6 +650,13 @@ export default function AdminPanel({
                                   {readiness.label}
                                 </span>
                               </div>
+                              {readiness.tone === 'blocked' && (
+                                <div style={{ fontSize: '11px', color: 'var(--text-soft)', marginTop: '-6px' }}>
+                                  {hasEmail(ride.contact_email)
+                                    ? 'Email disponibile per contattarlo'
+                                    : 'Nessun contatto di recupero disponibile'}
+                                </div>
+                              )}
 
                               {/* Driver row */}
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', padding: '8px 10px' }}>
@@ -620,6 +684,13 @@ export default function AdminPanel({
                                     </button>
                                   )}
                                 </div>
+                                <EmailActions
+                                  email={ride.contact_email}
+                                  nickname={ride.driver}
+                                  city={ride.driverCity || ride.departureCity || ride.departure_city || ''}
+                                  isParticipant={false}
+                                  prominent={!hasTelegram(ride.telegram_username)}
+                                />
                               </div>
 
                               {/* Approved participants */}
@@ -653,6 +724,13 @@ export default function AdminPanel({
                                           </button>
                                         )}
                                       </div>
+                                      <EmailActions
+                                        email={p.contact_email}
+                                        nickname={p.nickname}
+                                        city={ride.departureCity || ride.departure_city || ''}
+                                        isParticipant={true}
+                                        prominent={!hasTelegram(p.telegram_username)}
+                                      />
                                     </div>
                                   ))}
                                 </div>

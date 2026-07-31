@@ -198,6 +198,23 @@ export async function getCurrentProfile() {
 }
 
 /**
+ * Best-effort sync of the private recovery email into profile_private_contacts,
+ * sourced from the authenticated session (never from user input).
+ * Table: profile_private_contacts
+ */
+async function syncContactEmailFromSession(user) {
+  const email = user?.email ? user.email.trim().toLowerCase() : null;
+  if (!email) return;
+  try {
+    await supabase
+      .from('profile_private_contacts')
+      .upsert({ id: user.id, contact_email: email });
+  } catch {
+    // Non-blocking: profile save must still succeed if this fails.
+  }
+}
+
+/**
  * Upserts user profile and private social/contact secrets.
  * Table: profiles, profile_secrets
  */
@@ -264,6 +281,10 @@ export async function upsertProfileLite(profilePayload) {
       secretsData = sData;
     }
 
+    // 3. Best-effort sync of the private recovery email from the authenticated
+    // session — never asked from the user, never blocking on failure.
+    await syncContactEmailFromSession(user);
+
     const merged = {
       ...profileData,
       telegram_username: secretsData?.telegram_username || null,
@@ -299,17 +320,18 @@ export async function fetchRides() {
 
 /**
  * Fetches all rides with detailed admin-only fields merged.
- * Table: rides, profiles, profile_secrets, ride_secrets
+ * Table: rides, profiles, profile_secrets, profile_private_contacts, ride_secrets
  */
 export async function fetchAdminRidesDetailed() {
   if (!isSupabaseConfigured) {
     return { data: [], error: new Error('Supabase is not configured') };
   }
   try {
-    const [ridesRes, profilesRes, secretsRes, rideSecretsRes, joinRequestsRes] = await Promise.all([
+    const [ridesRes, profilesRes, secretsRes, contactsRes, rideSecretsRes, joinRequestsRes] = await Promise.all([
       supabase.from('rides').select('*').order('created_at', { ascending: false }),
       supabase.from('profiles').select('id, nickname, departure_city'),
       supabase.from('profile_secrets').select('id, telegram_username, instagram_username'),
+      supabase.from('profile_private_contacts').select('id, contact_email'),
       supabase.from('ride_secrets').select('ride_id, telegram_group_link'),
       supabase.from('join_requests').select('id, ride_id, requester_id, status, approved_at').eq('status', 'approved')
     ]);
@@ -334,6 +356,15 @@ export async function fetchAdminRidesDetailed() {
       });
     }
 
+    const contactsData = (contactsRes && !contactsRes.error) ? contactsRes.data : [];
+    if (contactsData) {
+      contactsData.forEach(c => {
+        if (profileMap[c.id]) {
+          profileMap[c.id].contact_email = c.contact_email;
+        }
+      });
+    }
+
     const rideSecretsMap = {};
     const rideSecretsData = (rideSecretsRes && !rideSecretsRes.error) ? rideSecretsRes.data : [];
     if (rideSecretsData) {
@@ -354,6 +385,7 @@ export async function fetchAdminRidesDetailed() {
           nickname: requesterProfile.nickname || `Rider-${jr.requester_id.substring(0, 5)}`,
           telegram_username: requesterProfile.telegram_username || null,
           instagram_username: requesterProfile.instagram_username || null,
+          contact_email: requesterProfile.contact_email || null,
           approvedAt: jr.approved_at
         });
       });
@@ -369,6 +401,7 @@ export async function fetchAdminRidesDetailed() {
         driverCity: driverProfile.departure_city || null,
         telegram_username: driverProfile.telegram_username || null,
         instagram_username: driverProfile.instagram_username || null,
+        contact_email: driverProfile.contact_email || null,
         telegramUrl: rideSecretsMap[ride.id] || null,
         approvedCrew,
         departureCity: ride.departure_city,
