@@ -36,6 +36,73 @@ function parseLuggage(notes) {
   return notes;
 }
 
+function hasTelegram(val) {
+  return !!(val && typeof val === 'string' && val.trim() !== '' && val.trim() !== '-');
+}
+
+function normalizeTelegramHandle(val) {
+  if (!hasTelegram(val)) return null;
+  return val.trim().replace(/^@/, '');
+}
+
+function telegramDeepLink(val) {
+  const handle = normalizeTelegramHandle(val);
+  return handle ? `https://t.me/${handle}` : null;
+}
+
+function computeGroupReadiness(ride) {
+  const crew = ride.approvedCrew || [];
+  if (ride.telegramUrl) {
+    return { code: 'GRUPPO CREATO', label: 'GRUPPO CREATO', tone: 'ready' };
+  }
+  if (crew.length === 0) {
+    return { code: 'NESSUN PARTECIPANTE APPROVATO', label: 'NESSUN PARTECIPANTE APPROVATO', tone: 'idle' };
+  }
+  const people = [{ nickname: ride.driver, isDriver: true, telegram_username: ride.telegram_username }, ...crew];
+  const missing = people.filter(p => !hasTelegram(p.telegram_username));
+  if (missing.length === 0) {
+    return { code: 'PRONTO PER IL GRUPPO', label: 'PRONTO PER IL GRUPPO', tone: 'ready' };
+  }
+  if (missing.length === 1 && missing[0].isDriver) {
+    return { code: 'MANCA IL TELEGRAM DEL DRIVER', label: 'MANCA IL TELEGRAM DEL DRIVER', tone: 'blocked' };
+  }
+  if (missing.length === 1) {
+    return { code: 'MANCA 1 CONTATTO', label: 'MANCA 1 CONTATTO', tone: 'warning' };
+  }
+  return { code: 'MANCANO N CONTATTI', label: `MANCANO ${missing.length} CONTATTI`, tone: 'warning' };
+}
+
+function buildContactsListText(ride) {
+  const crew = ride.approvedCrew || [];
+  const driverLine = hasTelegram(ride.telegram_username)
+    ? `${ride.driver} — @${normalizeTelegramHandle(ride.telegram_username)}`
+    : `${ride.driver} — contatto Telegram mancante`;
+  const crewLines = crew.length === 0
+    ? ['Nessun partecipante approvato']
+    : crew.map(p => hasTelegram(p.telegram_username)
+        ? `${p.nickname} — @${normalizeTelegramHandle(p.telegram_username)}`
+        : `${p.nickname} — contatto Telegram mancante`);
+  return [
+    `Ride ${ride.departureCity || ride.departure_city || ''}`.trim(),
+    '',
+    'Driver:',
+    driverLine,
+    '',
+    'Partecipanti:',
+    ...crewLines
+  ].join('\n');
+}
+
+function buildContactRequestMessage(nickname, city) {
+  return `Ciao ${nickname}!\nCi sono persone approvate per la tua ride da ${city}. Per creare il gruppo ci manca il tuo username Telegram. Puoi mandarci il tuo contatto, per esempio @nomeutente?`;
+}
+
+function copyToClipboard(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).catch(() => {});
+  }
+}
+
 export default function AdminPanel({
   rides = [],
   joinRequests = [],
@@ -98,7 +165,10 @@ export default function AdminPanel({
   const filteredRequests = showTestData ? requests : requests.filter(r => !isTestVercelRecord(r));
 
   // ── KPI ──────────────────────────────────────────────────────
-  const openRides = filteredRides.filter((r) => r.status !== 'full' && r.status !== 'closed' && r.status !== 'archived');
+  const openRides = filteredRides.filter((r) => {
+    const seatsLeft = r.seatsAvailable ?? r.seats_available;
+    return r.status !== 'full' && r.status !== 'closed' && r.status !== 'archived' && seatsLeft !== 0;
+  });
   const totalSeats = openRides.reduce((acc, r) => acc + (r.seatsAvailable || 0), 0);
   const pendingJoins = filteredJoinRequests.filter((r) => r.status === 'pending' && !r.archived);
   const activeGenerals = filteredGeneralRequests.filter((r) => !r.archived && r.status !== 'rejected');
@@ -107,9 +177,11 @@ export default function AdminPanel({
   const sortedRides = [...filteredRides]
     .filter((r) => r.status !== 'archived')
     .sort((a, b) => {
-      // open rides first, then by id (newest last added = first in INITIAL_RIDES order)
-      if (a.status === 'full' && b.status !== 'full') return 1;
-      if (a.status !== 'full' && b.status === 'full') return -1;
+      // open rides first, then full/exhausted ones
+      const aFull = a.status === 'full' || (a.seatsAvailable ?? a.seats_available) === 0;
+      const bFull = b.status === 'full' || (b.seatsAvailable ?? b.seats_available) === 0;
+      if (aFull && !bFull) return 1;
+      if (!aFull && bFull) return -1;
       return 0;
     });
 
@@ -302,9 +374,9 @@ export default function AdminPanel({
 
           {/* ─ Rides + grouped join requests ─ */}
           <div>
-            <p className="cr-section-title">Passaggi ({rides.length})</p>
+            <p className="cr-section-title">Passaggi ({displayRides.length})</p>
 
-            {rides.length === 0 && (
+            {displayRides.length === 0 && (
               <p className="cr-empty">
                 Nessun passaggio disponibile. Crea un'offerta dalla home.
               </p>
@@ -484,6 +556,128 @@ export default function AdminPanel({
                             </div>
                           </div>
                         </div>
+                        {/* Persone della ride — operational crew card for Telegram group setup */}
+                        {(() => {
+                          const readiness = computeGroupReadiness(ride);
+                          const crew = ride.approvedCrew || [];
+                          const readinessColors = {
+                            ready: '#3ddc97',
+                            blocked: 'var(--solar-orange)',
+                            warning: 'var(--amber-gold)',
+                            idle: 'var(--text-soft)'
+                          };
+                          return (
+                            <div className="cr-crew-card" style={{
+                              padding: '12px 14px',
+                              borderBottom: '1px solid rgba(255,255,255,0.06)',
+                              background: 'rgba(255, 255, 255, 0.02)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '10px',
+                              marginBottom: '10px'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                                <label style={{ fontSize: '11px', color: 'var(--turquoise)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                  Persone della ride
+                                </label>
+                                <span style={{
+                                  fontSize: '10.5px',
+                                  fontWeight: '800',
+                                  textTransform: 'uppercase',
+                                  letterSpacing: '0.03em',
+                                  color: readinessColors[readiness.tone],
+                                  border: `1px solid ${readinessColors[readiness.tone]}`,
+                                  borderRadius: '999px',
+                                  padding: '3px 10px'
+                                }}>
+                                  {readiness.label}
+                                </span>
+                              </div>
+
+                              {/* Driver row */}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', padding: '8px 10px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                  <span style={{ fontSize: '9.5px', fontWeight: '800', color: '#0b0c1e', background: 'var(--amber-gold)', borderRadius: '4px', padding: '2px 6px', letterSpacing: '0.03em' }}>DRIVER</span>
+                                  <strong style={{ color: 'var(--text-main)' }}>{ride.driver}</strong>
+                                  {ride.driverCity && <span style={{ color: 'var(--text-soft)', fontSize: '12px' }}>({ride.driverCity})</span>}
+                                  {!hasTelegram(ride.telegram_username) && (
+                                    <span style={{ fontSize: '9.5px', fontWeight: '800', color: 'var(--solar-orange)', border: '1px solid var(--solar-orange)', borderRadius: '4px', padding: '1px 6px' }}>CONTATTO MANCANTE</span>
+                                  )}
+                                </div>
+                                <div style={{ fontSize: '12px', color: 'var(--text-soft)', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                                  <span>Telegram: {hasTelegram(ride.telegram_username)
+                                    ? <a href={telegramDeepLink(ride.telegram_username)} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--turquoise)' }}>@{normalizeTelegramHandle(ride.telegram_username)}</a>
+                                    : <span style={{ color: 'var(--solar-orange)' }}>mancante</span>}
+                                  </span>
+                                  <span>Instagram: {hasTelegram(ride.instagram_username) ? ride.instagram_username : 'non indicato'}</span>
+                                  {!hasTelegram(ride.telegram_username) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => copyToClipboard(buildContactRequestMessage(ride.driver, ride.departureCity || ride.departure_city || ''))}
+                                      style={{ background: 'transparent', border: '1px solid var(--turquoise)', color: 'var(--turquoise)', borderRadius: '6px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer' }}
+                                    >
+                                      Copia messaggio di contatto
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Approved participants */}
+                              {crew.length === 0 ? (
+                                <div style={{ fontSize: '12px', fontStyle: 'italic', color: 'var(--text-soft)' }}>Nessun partecipante approvato per questa ride.</div>
+                              ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                  {crew.map(p => (
+                                    <div key={p.id} style={{ display: 'flex', flexDirection: 'column', gap: '4px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', padding: '8px 10px' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                        <span style={{ fontSize: '9.5px', fontWeight: '800', color: '#0b0c1e', background: 'var(--turquoise)', borderRadius: '4px', padding: '2px 6px', letterSpacing: '0.03em' }}>PARTECIPANTE</span>
+                                        <strong style={{ color: 'var(--text-main)' }}>{p.nickname}</strong>
+                                        {p.approvedAt && <span style={{ color: 'var(--text-soft)', fontSize: '11px' }}>approvato il {fmtDate(p.approvedAt)}</span>}
+                                        {!hasTelegram(p.telegram_username) && (
+                                          <span style={{ fontSize: '9.5px', fontWeight: '800', color: 'var(--solar-orange)', border: '1px solid var(--solar-orange)', borderRadius: '4px', padding: '1px 6px' }}>CONTATTO MANCANTE</span>
+                                        )}
+                                      </div>
+                                      <div style={{ fontSize: '12px', color: 'var(--text-soft)', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                                        <span>Telegram: {hasTelegram(p.telegram_username)
+                                          ? <a href={telegramDeepLink(p.telegram_username)} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--turquoise)' }}>@{normalizeTelegramHandle(p.telegram_username)}</a>
+                                          : <span style={{ color: 'var(--solar-orange)' }}>mancante</span>}
+                                        </span>
+                                        <span>Instagram: {hasTelegram(p.instagram_username) ? p.instagram_username : 'non indicato'}</span>
+                                        {!hasTelegram(p.telegram_username) && (
+                                          <button
+                                            type="button"
+                                            onClick={() => copyToClipboard(buildContactRequestMessage(p.nickname, ride.departureCity || ride.departure_city || ''))}
+                                            style={{ background: 'transparent', border: '1px solid var(--turquoise)', color: 'var(--turquoise)', borderRadius: '6px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer' }}
+                                          >
+                                            Copia messaggio di contatto
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() => copyToClipboard(buildContactsListText(ride))}
+                                style={{
+                                  alignSelf: 'flex-start',
+                                  background: 'linear-gradient(135deg, var(--turquoise, #3ddc97), var(--amber-gold, #ffc547))',
+                                  border: 'none',
+                                  borderRadius: '8px',
+                                  padding: '6px 14px',
+                                  color: '#0b0c1e',
+                                  fontSize: '11.5px',
+                                  fontWeight: '700',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                Copia contatti Telegram
+                              </button>
+                            </div>
+                          );
+                        })()}
                         <div className="cr-telegram-link-section" style={{
                           padding: '10px 14px',
                           borderBottom: '1px solid rgba(255,255,255,0.06)',

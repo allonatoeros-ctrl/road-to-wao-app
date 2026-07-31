@@ -306,11 +306,12 @@ export async function fetchAdminRidesDetailed() {
     return { data: [], error: new Error('Supabase is not configured') };
   }
   try {
-    const [ridesRes, profilesRes, secretsRes, rideSecretsRes] = await Promise.all([
+    const [ridesRes, profilesRes, secretsRes, rideSecretsRes, joinRequestsRes] = await Promise.all([
       supabase.from('rides').select('*').order('created_at', { ascending: false }),
-      supabase.from('profiles').select('id, nickname'),
+      supabase.from('profiles').select('id, nickname, departure_city'),
       supabase.from('profile_secrets').select('id, telegram_username, instagram_username'),
-      supabase.from('ride_secrets').select('ride_id, telegram_group_link')
+      supabase.from('ride_secrets').select('ride_id, telegram_group_link'),
+      supabase.from('join_requests').select('id, ride_id, requester_id, status, approved_at').eq('status', 'approved')
     ]);
 
     if (ridesRes.error) throw ridesRes.error;
@@ -319,7 +320,7 @@ export async function fetchAdminRidesDetailed() {
     const profileMap = {};
     if (profilesRes.data) {
       profilesRes.data.forEach(p => {
-        profileMap[p.id] = { nickname: p.nickname };
+        profileMap[p.id] = { nickname: p.nickname, departure_city: p.departure_city };
       });
     }
 
@@ -341,15 +342,35 @@ export async function fetchAdminRidesDetailed() {
       });
     }
 
+    const approvedCrewByRide = {};
+    const approvedJoinsData = (joinRequestsRes && !joinRequestsRes.error) ? joinRequestsRes.data : [];
+    if (approvedJoinsData) {
+      approvedJoinsData.forEach(jr => {
+        const requesterProfile = profileMap[jr.requester_id] || {};
+        if (!approvedCrewByRide[jr.ride_id]) approvedCrewByRide[jr.ride_id] = [];
+        approvedCrewByRide[jr.ride_id].push({
+          id: jr.id,
+          requesterId: jr.requester_id,
+          nickname: requesterProfile.nickname || `Rider-${jr.requester_id.substring(0, 5)}`,
+          telegram_username: requesterProfile.telegram_username || null,
+          instagram_username: requesterProfile.instagram_username || null,
+          approvedAt: jr.approved_at
+        });
+      });
+    }
+
     const detailedRides = (ridesRes.data || []).map(ride => {
       const driverProfile = profileMap[ride.driver_id] || {};
+      const approvedCrew = approvedCrewByRide[ride.id] || [];
       return {
         ...ride,
         driver: driverProfile.nickname || `Rider-${ride.driver_id.substring(0, 5)}`,
         driverId: ride.driver_id,
+        driverCity: driverProfile.departure_city || null,
         telegram_username: driverProfile.telegram_username || null,
         instagram_username: driverProfile.instagram_username || null,
         telegramUrl: rideSecretsMap[ride.id] || null,
+        approvedCrew,
         departureCity: ride.departure_city,
         departureDate: ride.departure_date,
         returnDate: ride.return_date,

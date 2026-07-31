@@ -394,9 +394,16 @@ function App() {
           }));
 
           setRides((previousRides) => {
-            const existingIds = new Set(previousRides.map((ride) => String(ride.id)));
-            const newSupabaseRides = mappedRides.filter((ride) => !existingIds.has(String(ride.id)));
-            return [...newSupabaseRides, ...previousRides];
+            const mappedById = new Map(mappedRides.map((ride) => [String(ride.id), ride]));
+            const updatedExisting = previousRides.map((ride) => {
+              const fresh = mappedById.get(String(ride.id));
+              if (!fresh) return ride;
+              mappedById.delete(String(ride.id));
+              // Preserve any already-unlocked telegramUrl instead of clobbering it with null
+              return { ...ride, ...fresh, telegramUrl: ride.telegramUrl || fresh.telegramUrl };
+            });
+            const newSupabaseRides = Array.from(mappedById.values());
+            return [...newSupabaseRides, ...updatedExisting];
           });
           console.log(`loaded Supabase rides count: ${mappedRides.length}`);
         } else {
@@ -456,6 +463,27 @@ function App() {
           console.error('Error fetching profiles for join requests:', err);
         }
 
+        // Resolve driver_id directly from the DB for every referenced ride, so join
+        // requests on rides not currently in the (open/full-only) public board list
+        // — e.g. archived/cancelled — still surface for their driver in Messages.
+        let rideDriverMap = {};
+        try {
+          const uniqueRideIds = Array.from(new Set(rawRequests.map(r => r.ride_id).filter(Boolean)));
+          if (uniqueRideIds.length > 0) {
+            const { data: rideRows } = await supabase
+              .from('rides')
+              .select('id, driver_id')
+              .in('id', uniqueRideIds);
+            if (rideRows) {
+              rideRows.forEach(r => {
+                rideDriverMap[r.id] = r.driver_id;
+              });
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching ride driver ids for join requests:', err);
+        }
+
         const mappedJoins = rawRequests.map(req => {
           const ride = rides.find(r => String(r.id) === String(req.ride_id));
           const requesterName = profileMap[req.requester_id] || `Rider-${req.requester_id.substring(0, 5)}`;
@@ -474,7 +502,7 @@ function App() {
             id: req.id,
             rideId: req.ride_id,
             requesterId: req.requester_id,
-            driverId: ride?.driverId || ride?.driver_id || null,
+            driverId: ride?.driverId || ride?.driver_id || rideDriverMap[req.ride_id] || null,
             rideSummary: ride 
               ? `${ride.departureCity}/${ride.departureDate}/${ride.travelTime}/${ride.driver}`
               : `Ride-${req.ride_id}`,
@@ -526,7 +554,7 @@ function App() {
             message: cleanMessage,
             rideId: req.ride_id,
             requesterId: req.requester_id,
-            driverId: ride?.driverId || ride?.driver_id || null,
+            driverId: ride?.driverId || ride?.driver_id || rideDriverMap[req.ride_id] || null,
             createdAt: req.created_at || new Date().toISOString()
           };
         });
