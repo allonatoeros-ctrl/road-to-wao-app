@@ -798,7 +798,7 @@ export default function AdminPanel({
                                         nickname={p.nickname}
                                         city={ride.departureCity || ride.departure_city || ''}
                                         rideId={ride.id}
-                                        userId={p.id}
+                                        userId={p.requesterId || p.id}
                                         role="participant"
                                         prominent={!hasTelegram(p.telegram_username)}
                                       />
