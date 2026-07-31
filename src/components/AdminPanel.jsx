@@ -195,7 +195,7 @@ function EmailActions({ email, nickname, city, rideId, userId, role, prominent }
         disabled={isSending || status === 'sent'}
         style={{ ...btnStyle, opacity: isSending || status === 'sent' ? 0.6 : 1, cursor: isSending || status === 'sent' ? 'not-allowed' : 'pointer' }}
       >
-        {isSending ? 'INVIO...' : 'INVIA EMAIL'}
+        {isSending ? 'INVIO...' : role === 'participant' ? 'AVVISA GRUPPO' : 'INVIA EMAIL'}
       </button>
       <button
         type="button"

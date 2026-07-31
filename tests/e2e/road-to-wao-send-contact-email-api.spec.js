@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test';
 
 const ADMIN_ID = '3a83d67a-949f-4d6b-b50b-6ee71158cc9f';
 const DRIVER_ID = '335786e8-09aa-474c-8c2e-bd7730ad3109';
+const PARTICIPANT_ID = 'ccc00000-0000-0000-0000-000000000021';
 const RIDE_ID = '75236fb6-9ff5-4fe8-b620-8f8955f0d5fb';
 
 function makeReq({ token, body }) {
@@ -71,10 +72,14 @@ test.describe('POST /api/admin/send-contact-email', () => {
       if (href.includes('/rest/v1/profiles') && href.includes(`id=eq.${DRIVER_ID}`)) {
         return jsonResponse({ is_admin: false, nickname: 'Auro' });
       }
+      if (href.includes('/rest/v1/profiles') && href.includes(`id=eq.${PARTICIPANT_ID}`)) {
+        return jsonResponse({ is_admin: false, nickname: 'Gloria' });
+      }
       if (href.includes('/rest/v1/rides')) {
         return jsonResponse({ id: RIDE_ID, driver_id: DRIVER_ID, departure_city: 'Padova' });
       }
       if (href.includes('/rest/v1/profile_private_contacts')) {
+        if (href.includes(`id=eq.${PARTICIPANT_ID}`)) return jsonResponse({ contact_email: 'participant-private@example.com' });
         return jsonResponse({ contact_email: 'driver-private@example.com' });
       }
       if (href.includes('https://api.resend.com/emails')) {
@@ -110,6 +115,26 @@ test.describe('POST /api/admin/send-contact-email', () => {
     expect(resendPayloads[0].subject).toBe('Due persone vorrebbero unirsi alla tua ride 🚗');
     expect(resendPayloads[0].text).toContain('Due persone hanno chiesto di unirsi alla tua ride in partenza da Padova');
     expect(resendPayloads[0].html).toContain('<p');
+  });
+
+  test('sends the group announcement template to approved participants', async () => {
+    const res = await runHandler(handler, makeReq({
+      token: 'admin-token',
+      body: {
+        rideId: RIDE_ID,
+        userId: PARTICIPANT_ID,
+        role: 'participant',
+      },
+    }));
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(resendPayloads).toHaveLength(1);
+    expect(resendPayloads[0].to).toEqual(['participant-private@example.com']);
+    expect(resendPayloads[0].subject).toBe('Tra poco apriamo il vostro canale Telegram 🚗');
+    expect(resendPayloads[0].text).toContain('Abbiamo già i candidati per la ride');
+    expect(resendPayloads[0].text).toContain('Se hai suggerimenti per migliorare l\'app');
+    expect(resendPayloads[0].bcc).toEqual(['allonatoeros@example.com']);
   });
 
   test('rejects anonymous requests', async () => {

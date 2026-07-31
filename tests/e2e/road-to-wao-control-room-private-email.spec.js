@@ -242,5 +242,8 @@ test.describe('Control Room — private recovery email', () => {
     await expect(driverEmailRow.getByText('Email inviata')).toBeVisible();
     await expect(sendButton).toBeDisabled();
     expect(sendRequests).toEqual([{ rideId: RIDE_ID, userId: ADMIN_USER_ID, role: 'driver' }]);
+
+    const participantEmailRow = rideCard.locator('div').filter({ hasText: 'nome1@example.com' }).last();
+    await expect(participantEmailRow.getByRole('button', { name: 'AVVISA GRUPPO' })).toBeVisible();
   });
 });

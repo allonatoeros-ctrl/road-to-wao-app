@@ -1,7 +1,8 @@
 /* global Buffer, process */
 import { createClient } from '@supabase/supabase-js';
 
-const SUBJECT = 'Due persone vorrebbero unirsi alla tua ride 🚗';
+const RECOVERY_SUBJECT = 'Due persone vorrebbero unirsi alla tua ride 🚗';
+const GROUP_SUBJECT = 'Tra poco apriamo il vostro canale Telegram 🚗';
 
 function json(res, status, body) {
   res.statusCode = status;
@@ -47,7 +48,7 @@ function escapeHtml(value) {
     .replace(/'/g, '&#039;');
 }
 
-function buildEmail({ nickname, city }) {
+function buildRecoveryEmail({ nickname, city }) {
   const safeNickname = nickname || 'ciao';
   const safeCity = city || 'la tua citta';
   const text = [
@@ -78,7 +79,37 @@ function buildEmail({ nickname, city }) {
   </body>
 </html>`;
 
-  return { text, html };
+  return { text, html, subject: RECOVERY_SUBJECT };
+}
+
+function buildGroupEmail({ nickname }) {
+  const safeNickname = nickname || 'ciao';
+  const text = [
+    `Ciao ${safeNickname}!`,
+    '',
+    'Abbiamo già i candidati per la ride e stiamo per aprire il canale Telegram per organizzarci meglio.',
+    '',
+    'Appena confermiamo la partenza, ti mandiamo la conferma qui. Se hai suggerimenti per migliorare l\'app, siamo super disponibili. Se ti servono informazioni o dettagli, scrivici pure: ti aiutiamo volentieri.',
+    '',
+    'A presto,',
+    'Team Road to WAO'
+  ].join('\n');
+
+  const html = `<!doctype html>
+<html lang="it">
+  <body style="margin:0;padding:0;background:#f7f7f4;color:#151515;font-family:Arial,Helvetica,sans-serif;">
+    <div style="max-width:560px;margin:0 auto;padding:28px 18px;">
+      <div style="background:#ffffff;border:1px solid #e8e4dc;border-radius:12px;padding:24px 22px;line-height:1.55;font-size:16px;">
+        <p style="margin:0 0 18px;">Ciao ${escapeHtml(safeNickname)}!</p>
+        <p style="margin:0 0 18px;">Abbiamo già i candidati per la ride e stiamo per aprire il canale Telegram per organizzarci meglio.</p>
+        <p style="margin:0 0 18px;">Appena confermiamo la partenza, ti mandiamo la conferma qui. Se hai suggerimenti per migliorare l'app, siamo super disponibili. Se ti servono informazioni o dettagli, scrivici pure: ti aiutiamo volentieri.</p>
+        <p style="margin:0;">A presto,<br>Team Road to WAO</p>
+      </div>
+    </div>
+  </body>
+</html>`;
+
+  return { text, html, subject: GROUP_SUBJECT };
 }
 
 async function readBody(req) {
@@ -166,16 +197,18 @@ export default async function handler(req, res) {
     return json(res, 404, { error: 'Email del destinatario non disponibile' });
   }
 
-  const email = buildEmail({
-    nickname: profile?.nickname || 'ciao',
-    city: ride.departure_city || 'la tua citta'
-  });
+  const email = role === 'participant'
+    ? buildGroupEmail({ nickname: profile?.nickname || 'ciao' })
+    : buildRecoveryEmail({
+        nickname: profile?.nickname || 'ciao',
+        city: ride.departure_city || 'la tua citta'
+      });
 
   const emailPayload = {
     from: `${env.fromName} <${env.fromEmail}>`,
     to: [contact.contact_email],
     reply_to: env.replyTo,
-    subject: SUBJECT,
+    subject: email.subject,
     text: email.text,
     html: email.html
   };
