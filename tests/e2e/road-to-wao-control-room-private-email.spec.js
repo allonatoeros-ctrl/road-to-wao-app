@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 // Verifies the private recovery email surfaced in the Control Room "Persone
 // della ride" card: visible to admins only, never on the public board, with
-// working copy/mailto actions. Mirrors the Padova scenario (driver with no
+// working copy/API-send actions. Mirrors the Padova scenario (driver with no
 // Telegram on file) used by road-to-wao-control-room-crew-readiness.spec.js.
 const ADMIN_USER_ID = '335786e8-09aa-474c-8c2e-bd7730ad3109';
 const PARTICIPANT_1_ID = 'ccc00000-0000-0000-0000-000000000021';
@@ -191,7 +191,17 @@ test.describe('Control Room — private recovery email', () => {
     await expect(page.getByText('nome1@example.com')).toHaveCount(0);
   });
 
-  test('admin sees private email with copy/mailto/telegram-request actions in Control Room', async ({ page }) => {
+  test('admin sees private email with copy/send/telegram-request actions in Control Room', async ({ page }) => {
+    const sendRequests = [];
+    await page.route('**/api/admin/send-contact-email', async (route) => {
+      sendRequests.push(JSON.parse(route.request().postData() || '{}'));
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, maskedEmail: 'a***@e***' }),
+      });
+    });
+
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await dismissOnboarding(page);
 
@@ -218,10 +228,19 @@ test.describe('Control Room — private recovery email', () => {
     // Actions on the driver row.
     const driverEmailRow = rideCard.locator('div').filter({ hasText: 'auro@example.com' }).last();
     await expect(driverEmailRow.getByRole('button', { name: 'COPIA EMAIL' })).toBeVisible();
-    const mailtoLink = driverEmailRow.getByRole('link', { name: 'SCRIVI EMAIL' });
-    await expect(mailtoLink).toBeVisible();
-    await expect(mailtoLink).toHaveAttribute('href', /^mailto:auro%40example\.com\?subject=/);
-    await expect(mailtoLink).toHaveAttribute('href', /body=.*username\+Telegram/);
+    await expect(driverEmailRow.getByRole('button', { name: 'INVIA EMAIL' })).toBeVisible();
     await expect(driverEmailRow.getByRole('button', { name: 'COPIA MAIL PER TELEGRAM' })).toBeVisible();
+    await expect(driverEmailRow.getByRole('link', { name: 'SCRIVI EMAIL' })).toHaveCount(0);
+
+    page.once('dialog', async (dialog) => {
+      expect(dialog.message()).toContain('a***@e***');
+      await dialog.accept();
+    });
+
+    const sendButton = driverEmailRow.getByRole('button', { name: 'INVIA EMAIL' });
+    await sendButton.dblclick();
+    await expect(driverEmailRow.getByText('Email inviata')).toBeVisible();
+    await expect(sendButton).toBeDisabled();
+    expect(sendRequests).toEqual([{ rideId: RIDE_ID, userId: ADMIN_USER_ID, role: 'driver' }]);
   });
 });

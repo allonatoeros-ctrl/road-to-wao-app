@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { isTestVercelRecord, getLastCleanupResult, fetchAdminRidesDetailed } from '../services/roadToWaoDb';
+import { supabase } from '../services/supabaseClient';
 
 function fmtDate(iso) {
   if (!iso) return '';
@@ -101,18 +102,12 @@ function hasEmail(val) {
   return !!(val && typeof val === 'string' && val.trim() !== '');
 }
 
-function buildTelegramRequestEmailBody(nickname, city, isParticipant) {
-  const rideRef = isParticipant ? 'la ride a cui hai chiesto di unirti' : 'la tua ride';
-  const cityLine = city ? ` da ${city}` : '';
-  return `Ciao ${nickname}!\n\nCi sono persone approvate per ${rideRef}${isParticipant ? '' : cityLine}.\n\nPer creare il gruppo ci manca soltanto il tuo username Telegram. Puoi rispondere a questa email scrivendoci il tuo contatto, per esempio @nomeutente.\n\nAppena ce lo mandi, creiamo il gruppo con gli altri partecipanti.\n\nA presto,\nTeam Two How`;
+function buildTelegramRequestEmailBody(nickname, city) {
+  const cityLabel = city ? ` da ${city}` : '';
+  return `Ciao ${nickname}!\n\nDue persone hanno chiesto di unirsi alla tua ride${cityLabel} per il festival.\n\nPer creare il gruppo ci manca soltanto il tuo username Telegram.\n\nTi basta rispondere a questa email scrivendoci il tuo username, per esempio @nomeutente. Appena ce lo mandi, creeremo il gruppo con gli altri partecipanti.\n\nA presto,\nTeam Road to WAO`;
 }
 
-const TELEGRAM_REQUEST_SUBJECT = 'Ti stanno aspettando su Two How 🚗';
-
-function mailtoUrl(email, subject, body) {
-  const params = new URLSearchParams({ subject, body });
-  return `mailto:${encodeURIComponent(email.trim())}?${params.toString()}`;
-}
+const TELEGRAM_REQUEST_SUBJECT = 'Due persone vorrebbero unirsi alla tua ride 🚗';
 
 function copyToClipboard(text) {
   if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -120,10 +115,38 @@ function copyToClipboard(text) {
   }
 }
 
-function EmailActions({ email, nickname, city, isParticipant, prominent }) {
+function maskEmail(email) {
+  const [local = '', domain = ''] = String(email || '').split('@');
+  if (!local || !domain) return 'email disponibile';
+  return `${local.slice(0, 1)}***@${domain.slice(0, 1)}***`;
+}
+
+async function sendContactEmail({ rideId, userId, role }) {
+  const sessionResult = await supabase.auth.getSession();
+  const accessToken = sessionResult.data?.session?.access_token;
+  if (!accessToken) throw new Error('Sessione non valida. Accedi di nuovo.');
+
+  const response = await fetch('/api/admin/send-contact-email', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ rideId, userId, role })
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.error || 'Invio email non riuscito');
+  return result;
+}
+
+function EmailActions({ email, nickname, city, rideId, userId, role, prominent }) {
+  const [status, setStatus] = useState('idle');
+  const [message, setMessage] = useState('');
+
   if (!hasEmail(email)) return null;
   const cleanEmail = email.trim();
-  const telegramRequestBody = buildTelegramRequestEmailBody(nickname, city, isParticipant);
+  const telegramRequestBody = buildTelegramRequestEmailBody(nickname, city);
+  const isSending = status === 'sending';
   const btnStyle = {
     background: 'transparent',
     border: `1px solid ${prominent ? 'var(--solar-orange)' : 'var(--turquoise)'}`,
@@ -135,6 +158,23 @@ function EmailActions({ email, nickname, city, isParticipant, prominent }) {
     textDecoration: 'none',
     display: 'inline-block'
   };
+
+  const handleSend = async () => {
+    if (isSending || status === 'sent') return;
+    const confirmed = window.confirm(`Inviare email a ${maskEmail(cleanEmail)}?`);
+    if (!confirmed) return;
+    setStatus('sending');
+    setMessage('');
+    try {
+      await sendContactEmail({ rideId, userId, role });
+      setStatus('sent');
+      setMessage('Email inviata');
+    } catch (error) {
+      setStatus('error');
+      setMessage(error.message || 'Invio email non riuscito');
+    }
+  };
+
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
       <span style={{ fontSize: prominent ? '12px' : '11.5px', color: prominent ? 'var(--text-main)' : 'var(--text-soft)', fontWeight: prominent ? '700' : '400' }}>
@@ -143,9 +183,14 @@ function EmailActions({ email, nickname, city, isParticipant, prominent }) {
       <button type="button" onClick={() => copyToClipboard(cleanEmail)} style={btnStyle}>
         COPIA EMAIL
       </button>
-      <a href={mailtoUrl(cleanEmail, TELEGRAM_REQUEST_SUBJECT, telegramRequestBody)} style={btnStyle}>
-        SCRIVI EMAIL
-      </a>
+      <button
+        type="button"
+        onClick={handleSend}
+        disabled={isSending || status === 'sent'}
+        style={{ ...btnStyle, opacity: isSending || status === 'sent' ? 0.6 : 1, cursor: isSending || status === 'sent' ? 'not-allowed' : 'pointer' }}
+      >
+        {isSending ? 'INVIO...' : 'INVIA EMAIL'}
+      </button>
       <button
         type="button"
         onClick={() => copyToClipboard(`Oggetto: ${TELEGRAM_REQUEST_SUBJECT}\n\n${telegramRequestBody}`)}
@@ -153,6 +198,11 @@ function EmailActions({ email, nickname, city, isParticipant, prominent }) {
       >
         COPIA MAIL PER TELEGRAM
       </button>
+      {message && (
+        <span style={{ fontSize: '11px', color: status === 'error' ? 'var(--solar-orange)' : 'var(--turquoise)', fontWeight: '700' }}>
+          {message}
+        </span>
+      )}
     </div>
   );
 }
@@ -688,7 +738,9 @@ export default function AdminPanel({
                                   email={ride.contact_email}
                                   nickname={ride.driver}
                                   city={ride.driverCity || ride.departureCity || ride.departure_city || ''}
-                                  isParticipant={false}
+                                  rideId={ride.id}
+                                  userId={ride.driver_id}
+                                  role="driver"
                                   prominent={!hasTelegram(ride.telegram_username)}
                                 />
                               </div>
@@ -728,7 +780,9 @@ export default function AdminPanel({
                                         email={p.contact_email}
                                         nickname={p.nickname}
                                         city={ride.departureCity || ride.departure_city || ''}
-                                        isParticipant={true}
+                                        rideId={ride.id}
+                                        userId={p.id}
+                                        role="participant"
                                         prominent={!hasTelegram(p.telegram_username)}
                                       />
                                     </div>
