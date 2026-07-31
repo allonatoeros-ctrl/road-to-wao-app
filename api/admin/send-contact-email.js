@@ -23,12 +23,13 @@ function getRequiredEnv() {
   const fromName = process.env.RESEND_FROM_NAME || 'Road to WAO';
   const fromEmail = process.env.RESEND_FROM_EMAIL;
   const replyTo = process.env.RESEND_REPLY_TO;
+  const bcc = process.env.RESEND_BCC;
 
   if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey || !resendApiKey || !fromEmail || !replyTo) {
     return { error: 'Configurazione email incompleta' };
   }
 
-  return { supabaseUrl, supabaseAnonKey, supabaseServiceRoleKey, resendApiKey, fromName, fromEmail, replyTo };
+  return { supabaseUrl, supabaseAnonKey, supabaseServiceRoleKey, resendApiKey, fromName, fromEmail, replyTo, bcc };
 }
 
 function maskEmail(email) {
@@ -170,20 +171,26 @@ export default async function handler(req, res) {
     city: ride.departure_city || 'la tua citta'
   });
 
+  const emailPayload = {
+    from: `${env.fromName} <${env.fromEmail}>`,
+    to: [contact.contact_email],
+    reply_to: env.replyTo,
+    subject: SUBJECT,
+    text: email.text,
+    html: email.html
+  };
+
+  if (env.bcc) {
+    emailPayload.bcc = [env.bcc];
+  }
+
   const resendResponse = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${env.resendApiKey}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      from: `${env.fromName} <${env.fromEmail}>`,
-      to: [contact.contact_email],
-      reply_to: env.replyTo,
-      subject: SUBJECT,
-      text: email.text,
-      html: email.html
-    })
+    body: JSON.stringify(emailPayload)
   });
 
   if (!resendResponse.ok) {

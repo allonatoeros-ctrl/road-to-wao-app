@@ -52,6 +52,7 @@ test.describe('POST /api/admin/send-contact-email', () => {
     process.env.RESEND_FROM_NAME = 'Road to WAO';
     process.env.RESEND_FROM_EMAIL = 'crew@example.com';
     process.env.RESEND_REPLY_TO = 'allonatoeros@example.com';
+    process.env.RESEND_BCC = 'allonatoeros@example.com';
     resendPayloads = [];
 
     globalThis.fetch = async (url, options = {}) => {
@@ -105,6 +106,7 @@ test.describe('POST /api/admin/send-contact-email', () => {
     expect(resendPayloads[0].to).not.toContain('browser-chosen@example.com');
     expect(resendPayloads[0].from).toBe('Road to WAO <crew@example.com>');
     expect(resendPayloads[0].reply_to).toBe('allonatoeros@example.com');
+    expect(resendPayloads[0].bcc).toEqual(['allonatoeros@example.com']);
     expect(resendPayloads[0].subject).toBe('Due persone vorrebbero unirsi alla tua ride 🚗');
     expect(resendPayloads[0].text).toContain('Due persone hanno chiesto di unirsi alla tua ride in partenza da Padova');
     expect(resendPayloads[0].html).toContain('<p');
