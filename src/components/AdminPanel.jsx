@@ -134,7 +134,13 @@ async function sendContactEmail({ rideId, userId, role }) {
     },
     body: JSON.stringify({ rideId, userId, role })
   });
-  const result = await response.json().catch(() => ({}));
+  const raw = await response.text();
+  let result;
+  try {
+    result = raw ? JSON.parse(raw) : {};
+  } catch {
+    result = {};
+  }
   if (!response.ok) throw new Error(result.error || 'Invio email non riuscito');
   return result;
 }
